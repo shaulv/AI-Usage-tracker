@@ -1,0 +1,27 @@
+{
+  "plan_type": "plus",
+  "rate_limit": null,
+  "code_review_rate_limit": null,
+  "additional_rate_limits": [
+    {
+      "limit_name": "",
+      "metered_feature": "codex_foo_bar",
+      "rate_limit": {
+        "allowed": true,
+        "limit_reached": false,
+        "primary_window": {
+          "used_percent": 0,
+          "limit_window_seconds": 604800,
+          "reset_after_seconds": 604800,
+          "reset_at": 1785629192
+        },
+        "secondary_window": null
+      }
+    },
+    {
+      "limit_name": null,
+      "metered_feature": null,
+      "rate_limit": null
+    }
+  ]
+}

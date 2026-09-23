@@ -1,0 +1,14 @@
+{
+  "user_id": "user-FAKE0000000000000000FAKE",
+  "account_id": "acct-FAKE0000000000000000FAKE",
+  "email": "user@example.com",
+  "plan_type": null,
+  "rate_limit": null,
+  "code_review_rate_limit": null,
+  "additional_rate_limits": null,
+  "credits": null,
+  "spend_control": null,
+  "rate_limit_reached_type": null,
+  "promo": null,
+  "rate_limit_reset_credits": null
+}

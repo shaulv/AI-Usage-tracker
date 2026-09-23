@@ -1,0 +1,11 @@
+{
+  "auth_mode": "chatgpt",
+  "OPENAI_API_KEY": null,
+  "tokens": {
+    "id_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjQxMDI0NDQ4MDAsImh0dHBzOi8vYXBpLm9wZW5haS5jb20vYXV0aCI6eyJjaGF0Z3B0X3BsYW5fdHlwZSI6InByb2xpdGUiLCJjaGF0Z3B0X2FjY291bnRfaWQiOiJhY2N0LUZBS0UifX0.FAKESIG",
+    "access_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjQxMDI0NDQ4MDAsImh0dHBzOi8vYXBpLm9wZW5haS5jb20vYXV0aCI6eyJjaGF0Z3B0X3BsYW5fdHlwZSI6InByb2xpdGUiLCJjaGF0Z3B0X2FjY291bnRfaWQiOiJhY2N0LUZBS0UifX0.FAKESIG",
+    "refresh_token": "FAKE-REFRESH",
+    "account_id": "acct-FAKE"
+  },
+  "last_refresh": "2026-07-19T02:02:49.553909Z"
+}

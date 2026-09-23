@@ -1,0 +1,8 @@
+{
+  "user_id": "user-FAKE0000000000000000FAKE",
+  "plan_type": "plus",
+  "rate_limit": null,
+  "code_review_rate_limit": null,
+  "additional_rate_limits": [],
+  "credits": { "has_credits": false, "unlimited": true, "balance": "0" }
+}

@@ -1,0 +1,17 @@
+# Build products
+.build/
+DerivedData/
+build/
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/
+
+# Never commit a credential. auth.json holds live access tokens.
+auth.json
+.codex/
+*.token
+secrets.*
+
+# macOS noise
+.DS_Store
+*.swp
