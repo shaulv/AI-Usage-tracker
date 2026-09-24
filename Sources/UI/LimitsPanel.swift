@@ -10,8 +10,20 @@ import AppKit
 /// as tall as it needs to be. Every state occupies the same slot and only its
 /// text changes, so no state change can shift the layout under the cursor.
 struct LimitsPanel: View {
+    /// ChatGPT keeps the environment slot it has always used, unchanged.
+    ///
+    /// Claude and Gemini are injected as ordinary distinct properties on
+    /// purpose: SwiftUI keys its environment by TYPE, not by property name, so
+    /// three `UsageStore`s written into one environment collapse to a single
+    /// instance. Measured on 24/09/2026 before this fix: the view saw
+    /// `ObjectIdentifier(0xac5114b00)` for all three properties, which rendered
+    /// ChatGPT's numbers inside the Claude and Gemini sections. Two of the
+    /// three sections have to arrive some other way for the panel to tell them
+    /// apart, and this is the cheapest correct way: no container type, so no
+    /// manual `objectWillChange` forwarding to get wrong.
     @EnvironmentObject private var chatGPT: UsageStore
-    @EnvironmentObject private var claude: UsageStore
+    @ObservedObject var claude: UsageStore
+    @ObservedObject var antigravity: UsageStore
     @EnvironmentObject private var settings: AppSettings
     @Environment(\.colorScheme) private var colorScheme
 
@@ -29,6 +41,23 @@ struct LimitsPanel: View {
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        }
+        .onAppear {
+            #if DEBUG
+            // Guard against reintroducing the collision described above:
+            // distinct instances are the only thing keeping these three
+            // sections honest, so a debug build fails loudly if that stops
+            // being true.
+            let identifiers = [
+                ObjectIdentifier(chatGPT),
+                ObjectIdentifier(claude),
+                ObjectIdentifier(antigravity),
+            ]
+            assert(
+                Set(identifiers).count == identifiers.count,
+                "LimitsPanel received the same UsageStore instance more than once - check store injection"
+            )
+            #endif
         }
     }
 
@@ -68,6 +97,7 @@ struct LimitsPanel: View {
             Task { @MainActor in
                 if settings.chatGPTEnabled { await chatGPT.refresh() }
                 if settings.claudeEnabled { await claude.refresh() }
+                if settings.antigravityEnabled { await antigravity.refresh() }
             }
         } label: {
             if isRefreshing {
@@ -83,6 +113,7 @@ struct LimitsPanel: View {
     private var isRefreshing: Bool {
         if case .refreshing = chatGPT.state { return true }
         if case .refreshing = claude.state { return true }
+        if case .refreshing = antigravity.state { return true }
         return false
     }
 
@@ -174,6 +205,7 @@ struct LimitsPanel: View {
         let off = [
             settings.chatGPTEnabled ? nil : "ChatGPT",
             settings.claudeEnabled ? nil : "Claude",
+            settings.antigravityEnabled ? nil : "Gemini",
         ].compactMap { $0 }
         return off.count == 1 ? off[0] : nil
     }
@@ -198,6 +230,7 @@ struct LimitsPanel: View {
         var list: [(String, UsageStore)] = []
         if settings.chatGPTEnabled { list.append(("ChatGPT", chatGPT)) }
         if settings.claudeEnabled { list.append(("Claude", claude)) }
+        if settings.antigravityEnabled { list.append(("Gemini", antigravity)) }
         return list
     }
 

@@ -10,7 +10,7 @@ import ChatGPTUsageCore
 /// it only reads credentials through the app's own sources and calls the app's
 /// own providers, so what it prints is exactly what the panel would render.
 ///
-/// Usage:  swift run usage-probe chatgpt | claude | both
+/// Usage:  swift run usage-probe chatgpt | claude | antigravity | both | all
 /// Exit:   0 when every requested provider answered, 1 when any failed.
 
 func describe(_ provider: any UsageProvider) async -> Bool {
@@ -51,12 +51,20 @@ for target in targets {
     case "claude":
         let ok = await describe(ClaudeUsageProvider())
         allOK = ok && allOK
+    case "antigravity":
+        let ok = await describe(AntigravityUsageProvider())
+        allOK = ok && allOK
     case "both":
         let chatGPT = await describe(ChatGPTUsageProvider())
         let claude = await describe(ClaudeUsageProvider())
         allOK = chatGPT && claude && allOK
+    case "all":
+        let chatGPT = await describe(ChatGPTUsageProvider())
+        let claude = await describe(ClaudeUsageProvider())
+        let antigravity = await describe(AntigravityUsageProvider())
+        allOK = chatGPT && claude && antigravity && allOK
     default:
-        print("unknown target '\(target)'. Use: chatgpt | claude | both")
+        print("unknown target '\(target)'. Use: chatgpt | claude | antigravity | both | all")
         allOK = false
     }
 }

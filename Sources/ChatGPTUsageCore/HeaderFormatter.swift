@@ -59,4 +59,28 @@ public enum UsageWindowLookup {
         guard let weekly = limits.first(where: { $0.name == "Weekly" }) else { return nil }
         return weekly.remainingPercentRounded
     }
+
+    /// Gemini-side views of the same lookups, over the fixed Antigravity row
+    /// names. The Gemini rows carry a provider prefix by design (they share a
+    /// panel with ChatGPT's own `Session` / `Weekly` rows), so they need
+    /// their own discovery rather than reusing the unprefixed matchers.
+    public static func geminiSessionPercent(in limits: [UsageLimit]) -> Int? {
+        guard let session = limits.first(where: { $0.name == "Gemini Session" }) else { return nil }
+        return session.usedPercentRounded
+    }
+
+    public static func geminiWeeklyPercent(in limits: [UsageLimit]) -> Int? {
+        guard let weekly = limits.first(where: { $0.name == "Gemini Weekly" }) else { return nil }
+        return weekly.usedPercentRounded
+    }
+
+    public static func geminiSessionRemainingPercent(in limits: [UsageLimit]) -> Int? {
+        guard let session = limits.first(where: { $0.name == "Gemini Session" }) else { return nil }
+        return session.remainingPercentRounded
+    }
+
+    public static func geminiWeeklyRemainingPercent(in limits: [UsageLimit]) -> Int? {
+        guard let weekly = limits.first(where: { $0.name == "Gemini Weekly" }) else { return nil }
+        return weekly.remainingPercentRounded
+    }
 }

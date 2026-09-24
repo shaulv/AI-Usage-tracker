@@ -20,6 +20,9 @@ final class AppSettings: ObservableObject {
     @Published var claudeEnabled: Bool {
         didSet { defaults.set(claudeEnabled, forKey: "claudeEnabled") }
     }
+    @Published var antigravityEnabled: Bool {
+        didSet { defaults.set(antigravityEnabled, forKey: "antigravityEnabled") }
+    }
     /// What the menu-bar status item shows: bare session percent, or the
     /// `S..% W..%` pair. A fresh install starts on the pair: a weekly window the
     /// user cannot see is the more expensive blind spot of the two.
@@ -38,6 +41,7 @@ final class AppSettings: ObservableObject {
         self.panelEnabled = defaults.object(forKey: "panelEnabled") as? Bool ?? true
         self.chatGPTEnabled = defaults.object(forKey: "chatGPTEnabled") as? Bool ?? true
         self.claudeEnabled = defaults.object(forKey: "claudeEnabled") as? Bool ?? true
+        self.antigravityEnabled = defaults.object(forKey: "antigravityEnabled") as? Bool ?? true
         let rawStyle = defaults.string(forKey: "headerStyle") ?? ""
         self.headerStyle = HeaderStyle(rawValue: rawStyle) ?? .sessionWeekly
         self.showRemaining = defaults.object(forKey: "showRemaining") as? Bool ?? true

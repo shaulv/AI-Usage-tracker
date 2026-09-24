@@ -27,6 +27,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         provider: ClaudeUsageProvider(),
         selectionKey: "selectedLimitName.claude"
     )
+    @MainActor private lazy var antigravityStore = UsageStore(
+        provider: AntigravityUsageProvider(),
+        selectionKey: "selectedLimitName.antigravity"
+    )
     private var cancellables = Set<AnyCancellable>()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -61,13 +65,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     /// Title recomputes from whichever provider is enabled: ChatGPT first,
-    /// Claude when ChatGPT is off, honest dashes when neither has data.
+    /// Claude when ChatGPT is off, Gemini when both are off, honest dashes
+    /// when no provider has data.
     private func updateStatusTitle() {
         let primary: UsageStore?
         if settings.chatGPTEnabled {
             primary = chatGPTStore
         } else if settings.claudeEnabled {
             primary = claudeStore
+        } else if settings.antigravityEnabled {
+            primary = antigravityStore
         } else {
             primary = nil
         }
@@ -98,10 +105,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func wireObservation() {
         // objectWillChange fires before the new value lands; the hop to the
         // main queue runs the title rebuild after it has.
-        Publishers.Merge3(
+        Publishers.MergeMany(
             settings.objectWillChange,
             chatGPTStore.objectWillChange,
-            claudeStore.objectWillChange
+            claudeStore.objectWillChange,
+            antigravityStore.objectWillChange
         )
         .receive(on: DispatchQueue.main)
         .sink { [weak self] in self?.updateStatusTitle() }
@@ -174,9 +182,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         panel.minSize = NSSize(width: 260, height: 56)
         panel.delegate = self
 
-        let root = LimitsPanel()
+        // Claude and Gemini are passed as arguments, not as environment
+        // objects: the environment is keyed by type, so extra `UsageStore`s
+        // there would silently overwrite ChatGPT's (measured before this fix).
+        let root = LimitsPanel(claude: claudeStore, antigravity: antigravityStore)
             .environmentObject(chatGPTStore)
-            .environmentObject(claudeStore)
             .environmentObject(settings)
         panel.contentView = NSHostingView(rootView: root)
         return panel
@@ -263,6 +273,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         claudeItem.state = settings.claudeEnabled ? .on : .off
         menu.addItem(claudeItem)
 
+        let antigravityItem = NSMenuItem(title: "Gemini", action: #selector(menuToggleAntigravity), keyEquivalent: "")
+        antigravityItem.target = self
+        antigravityItem.state = settings.antigravityEnabled ? .on : .off
+        menu.addItem(antigravityItem)
+
         menu.addItem(.separator())
 
         let headerRoot = NSMenuItem(title: "Menu Bar Shows", action: nil, keyEquivalent: "")
@@ -323,6 +338,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         settings.claudeEnabled.toggle()
     }
 
+    @objc private func menuToggleAntigravity() {
+        settings.antigravityEnabled.toggle()
+    }
+
     @objc private func menuSetHeaderStyle(_ sender: NSMenuItem) {
         guard let raw = sender.representedObject as? String,
               let style = HeaderStyle(rawValue: raw)
@@ -345,6 +364,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             .removeDuplicates()
             .sink { [weak self] enabled in self?.apply(claude: enabled) }
             .store(in: &cancellables)
+        settings.$antigravityEnabled
+            .removeDuplicates()
+            .sink { [weak self] enabled in self?.apply(antigravity: enabled) }
+            .store(in: &cancellables)
     }
 
     private func apply(chatGPT enabled: Bool) {
@@ -363,5 +386,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         claudeStore.start()
         Task { await claudeStore.refresh() }
+    }
+
+    private func apply(antigravity enabled: Bool) {
+        guard enabled else {
+            antigravityStore.stop()
+            return
+        }
+        antigravityStore.start()
+        Task { await antigravityStore.refresh() }
     }
 }

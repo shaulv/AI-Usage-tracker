@@ -56,4 +56,23 @@ final class HeaderFormatterTests: XCTestCase {
         XCTAssertEqual(UsageLimit(name: "X", usedFraction: 1.0, resetsAt: nil).remainingPercentRounded, 0)
         XCTAssertEqual(UsageLimit(name: "X", usedFraction: 0.0, resetsAt: nil).remainingPercentRounded, 100)
     }
+
+    func test_geminiLookup_findsPrefixedSessionAndWeekly() {
+        let limits = [
+            UsageLimit(name: "Weekly", usedFraction: 0.47, resetsAt: nil),
+            UsageLimit(name: "Gemini Weekly", usedFraction: 0.35, resetsAt: nil),
+            UsageLimit(name: "Gemini Session", usedFraction: 0.06, resetsAt: nil),
+        ]
+        XCTAssertEqual(UsageWindowLookup.geminiSessionPercent(in: limits), 6)
+        XCTAssertEqual(UsageWindowLookup.geminiWeeklyPercent(in: limits), 35)
+        XCTAssertEqual(UsageWindowLookup.geminiSessionRemainingPercent(in: limits), 94)
+        XCTAssertEqual(UsageWindowLookup.geminiWeeklyRemainingPercent(in: limits), 65)
+        // The unprefixed matcher must not steal the Gemini rows.
+        XCTAssertEqual(UsageWindowLookup.weeklyPercent(in: limits), 47)
+    }
+
+    func test_geminiLookup_returnsNilForAbsentWindows() {
+        XCTAssertEqual(UsageWindowLookup.geminiSessionPercent(in: []), nil)
+        XCTAssertEqual(UsageWindowLookup.geminiWeeklyPercent(in: []), nil)
+    }
 }

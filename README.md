@@ -15,10 +15,13 @@ Your first job, in order:
 
 1. `swift build` and fix whatever the compiler finds. Expect small syntax
    errors, not design problems.
-2. `swift test`. 70 tests pass. They cover the core framework only.
+2. `swift test`. 91 tests pass. They cover the core framework only.
 3. Run the `curl` probe below against the real account. Until that returns
    `HTTP 200` with a `used_percent`, nothing else is worth doing.
 4. `xcodegen generate`, open the project, run the app, and look at the panel.
+   The Gemini section appears once the Antigravity language server is running;
+   if it is not, the panel says "Antigravity IDE is not running - open it to
+   read Gemini usage".
 5. Re-measure the three threshold colors on the actual rendered panel. They were
    computed against flat hex backgrounds, and a `MenuBarExtra` window is not
    flat. See "Design conventions".
@@ -37,14 +40,15 @@ any change to `Sources/` or `Tests/`, and update this file when it complains.
 Shows usage percentages in the menu bar — the session window alone (`6%`) or
 session + weekly together (`S6% W47%`), pickable from the right-click menu.
 Click the status item for a floating, draggable, resizable panel with every
-limit on both accounts; stretch it edge-to-edge for a one-line strip that stays
+limit on all three accounts; stretch it edge-to-edge for a one-line strip that stays
 on top in any space. Right-click the status item for settings: show/hide panel,
-start at login, ChatGPT on/off, Claude on/off, header format, quit.
+start at login, ChatGPT on/off, Claude on/off, Gemini on/off, header format, quit.
 
 Polls adaptively: every 60 seconds while the numbers sit still, and every 10
-seconds for a minute once any percentage starts moving. Reads two local
-credential sources and two HTTPS endpoints (ChatGPT's usage endpoint, claude.ai's
-web usage endpoint). Writes nothing back to any credential source, sends
+seconds for a minute once any percentage starts moving. Reads three local
+credential sources and three read-only local endpoints (ChatGPT's usage endpoint,
+claude.ai's web usage endpoint, and the Antigravity language server's loopback
+quota endpoint). Reads nothing back to any credential source, sends
 nothing, tracks nothing.
 
 ---
@@ -68,6 +72,22 @@ Keychain's `Claude Safe Storage` key) instead of `auth.json`, and
 `ClaudeUsageProvider` mirrors `ChatGPTUsageProvider` line for line: same
 `UsageProvider` protocol, same injected transport, same never-stale rule,
 read-only, never refreshing anything.
+
+Gemini reads usage from the Antigravity language server's loopback quota
+endpoint, not from the OAuth token file (the token-file source is archived; see
+`tools/check-readme-claims.sh`). `AntigravitySession` discovers the running
+server by scanning `ps` + `lsof` (read-only, never writes), reads its CSRF
+token, and posts the caller-metadata block to
+`https://127.0.0.1:<port>/exa.language_server_pb.LanguageServerService/
+RetrieveUserQuotaSummary` over loopback HTTPS, trusting the server's self-signed
+certificate only for `127.0.0.1`/`localhost`/`::1`. `AntigravityUsageProvider`
+mirrors the same shape as the ChatGPT and Claude sides: same protocol, same
+injected transport, same never-stale rule, read-only, never refreshing
+anything. The response's `groups[].buckets[]` merge into four fixed rows:
+`Gemini Session`, `Gemini Weekly`, `Third-party Session`, `Third-party Weekly`
+(worst remaining fraction wins each pool). If the server is not running the
+panel says "Antigravity IDE is not running - open it to read Gemini usage"; a
+`401`/`403` from the server says "Antigravity rejected the local session - restart Antigravity IDE" (the OAuth refresh needs a client secret the app must never hold, so a 401 is not retried), and any other server failure says "Could not reach the Antigravity language server".
 
 If any step fails, the previously shown numbers are discarded and replaced with
 `--%` plus a reason. The app never keeps displaying a stale percentage.
@@ -179,12 +199,19 @@ Sources/ChatGPTUsageCore/
                                      ClaudeDesktopSessionSource (Keychain key +
                                      read-only SQLite cookie decryption)
   ClaudeUsageResponse.swift          Claude DTOs, ClaudeUsageMapper.limits(from:)
-  ClaudeUsageProvider.swift          the claude.ai GET and every failure path
+    ClaudeUsageProvider.swift          the claude.ai GET and every failure path
+  AntigravityQuotaSummary.swift      Decodable DTOs for RetrieveUserQuotaSummary
+                                      and toUsageLimits(now:) mapping groups
+  AntigravitySession.swift           AntigravitySessionSource protocol,
+                                      LanguageServerSessionSource (ps + lsof,
+                                      loopback HTTPS, self-signed trust)
+  AntigravityUsageProvider.swift     loopback POST + the four Antigravity
+                                      failure paths
   HeaderFormatter.swift              HeaderStyle, title formatting, window lookup
 
 Sources/App/ChatGPTUsageTrackerApp.swift   @main entry, delegates to AppDelegate
 Sources/App/AppDelegate.swift              NSStatusItem, NSPanel host, right-click
-                                           menu, both UsageStore instances
+                                           menu, all three UsageStore instances
 Sources/App/AppSettings.swift              persisted toggles + header style
 Sources/UI/LimitsPanel.swift               the responsive panel: wide shows a single condensed row (chips left, refresh right); narrow stacks one limit per line. No title, no quit button
 Sources/UI/ThresholdColors.swift           per-appearance threshold colors
@@ -194,12 +221,14 @@ Sources/UI/RelativeTime.swift              "in 2h 14m"
 Tests/ChatGPTUsageCoreTests/
   TestSupport.swift                  fixture loader, StubCredentialsSource,
                                      SpyTransport, FailingTransport, TestDates
-    ChatGPTUsageProviderTests.swift    17 tests
-  CodexCredentialsTests.swift        15 tests
-  UsageStoreTests.swift              12 tests (incl. burst cadence)
-  ClaudeUsageProviderTests.swift     19 tests
-  HeaderFormatterTests.swift         7 tests
-  Fixtures/                          15 JSON payloads plus two HTML fixtures
+          ChatGPTUsageProviderTests.swift    17 tests
+    CodexCredentialsTests.swift        15 tests
+    UsageStoreTests.swift              12 tests (incl. burst cadence)
+    ClaudeUsageProviderTests.swift     19 tests
+    AntigravityUsageProviderTests.swift 13 tests
+    AntigravitySessionTests.swift       6 tests
+    HeaderFormatterTests.swift          9 tests
+    Fixtures/                          17 JSON payloads plus two HTML fixtures
 ```
 
 ---
@@ -327,6 +356,12 @@ user reports one of these, the fix is on the right, not in the code.
 | `Claude session expired - open Claude to refresh it` | notConnected | cookie `expires_utc` past, or HTTP 401/403 that is NOT a Cloudflare challenge (aged-out `cf_clearance`) | open Claude Desktop once |
 | `Claude usage service returned HTTP <code>` | fetchFailed | any other non-2xx from claude.ai | server side; retry later |
 | `Unexpected response from Claude usage service` | fetchFailed | body did not decode, or none of `five_hour`, `seven_day`, `seven_day_opus`, `seven_day_sonnet`, `extra_usage`, `limits` was present | **the endpoint changed.** Same drill as the ChatGPT side. |
+| `Not signed in to Antigravity` | notConnected | token file missing, unreadable, or no access token | open Antigravity IDE or run `agy` once, then Refresh |
+| `Antigravity credentials are malformed - open Antigravity again` | notConnected | token file is not valid JSON | open Antigravity again |
+| `Antigravity session expired - open Antigravity to refresh it` | notConnected | token `expiry` more than 60 s in the past | open Antigravity IDE or run `agy` once |
+| `Antigravity rejected the saved session - open Antigravity to refresh it` | notConnected | HTTP 401 or 403 | open Antigravity IDE or run `agy` once |
+| `Antigravity usage service returned HTTP <code>` | fetchFailed | any other non-2xx | server side; retry later |
+| `Unexpected response from Antigravity usage service` | fetchFailed | body did not decode, or no `buckets` present | **the endpoint changed.** Same drill as the ChatGPT side. |
 
 The panel footer always shows one of: `not fetched yet`, `updating…`,
 `updated HH:mm`, or `failed, last good HH:mm`. That line exists so a silently
@@ -338,16 +373,18 @@ The menu bar shows `--%` whenever there is nothing honest to display.
 
 ## Tests
 
-70 tests, all in the core framework, none of them touching the network or the
+88 tests, all in the core framework, none of them touching the network or the
 real home directory. Transport and credentials source are both injected.
 
 | File | Count | Covers |
 |---|---|---|
-| `ChatGPTUsageProviderTests.swift` | 16 | the captured payload end to end, window naming by duration not position, 30-day and durationless windows, clamping 250 to 100 and -12 to 0, unnamed `additional_rate_limits` entries, unrecognized payload is a failure not an empty list, recognized payload with zero windows is a real empty answer, the expiry gate, 401, 503, an HTML body served as 200, transport failure, and the exact request headers |
+| `ChatGPTUsageProviderTests.swift` | 16 | the captured payload end to end, window naming by duration not position, 30-day and durationless windows, clamping 250 to 100 and -12 to 0, unnamed `additional_rate_limits` entries, unrecognized payload is a failure not an empty list, recognized payload with zero windows is a real empty answer, the expiry gate, 401, 503, an HTML body served as 200, transport failure, and the exact request headers | Tests-table counts are exact per file; see tools/check-readme-claims.sh. |
 | `CodexCredentialsTests.swift` | 14 | real-shaped `auth.json`, API-key sign-in, missing tokens, malformed JSON, missing file, load from disk, JWT expiry decode including unpadded base64url and a missing `exp`, the 60 second grace window, and every `WindowNamer` branch |
 | `UsageStoreTests.swift` | 11 | success publishes, **failure discards the previous numbers**, menu bar label follows the selection, a saved selection that no longer exists falls back to the first row, empty result stays `ok` with `--%`, the 60 second floor, both legs of the burst cadence, movement opens a burst, failure clears the movement baseline, and selection persistence |
 | `ClaudeUsageProviderTests.swift` | 19 | fixture mapping (session/weekly/model rows, RFC 3339 resets, null buckets = real empty, clamping, the `isCloudflareChallenge` helper tested on the header branch and both body markers), unrecognized payload and HTML-with-200 are fetch failures, exact cookie/UA request shape with no Authorization header, the local expiry gate proving zero network calls, a Cloudflare 403 that is distinguished from a session-lapse 403, the 500 path, transport failure, PBKDF2 recipe parity with the live probe, decrypt-shape refusals, and Chromium tick-to-date conversion |
-| `HeaderFormatterTests.swift` | 7 | the spec's literal `S2% W47%` string, bare `2%`, missing windows render `--` never `0`, and session/weekly lookup by derived name |
+| `HeaderFormatterTests.swift` | 9 | header strings, missing windows, derived-name lookup, and Gemini prefixed lookup that never steals the ChatGPT rows |
+| `AntigravityUsageProviderTests.swift` | 10 | four fixed rows, worst-fraction pool merge, verbatim unknown models, expiry gate with zero network calls, 401/500 paths, exact Bearer POST shape |
+| `AntigravityCredentialsTests.swift` | 6 | jetski token-file parsing, missing file, malformed JSON, empty token, unknown expiry, expired token |
 
 **Three tests are load-bearing. If you break one, you have broken the product,
 not the test.**
@@ -362,7 +399,7 @@ not the test.**
    changed" distinguishable from "this account has no limits". Collapse those
    two and a server-side break will read as an empty account forever.
 
-Fixtures: 15 JSON files plus two HTML fixtures, all with faked identifiers.
+Fixtures: 17 JSON files plus two HTML fixtures, all with faked identifiers.
 `Fixture.data(named:)` finds them under `swift test` via `Bundle.module`, under
 Xcode via `Bundle(for: TestBundleAnchor.self)`, and as a last resort on disk
 relative to `#filePath`. If you add a fixture, add it to all three assumptions
