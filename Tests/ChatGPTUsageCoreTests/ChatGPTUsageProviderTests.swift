@@ -280,4 +280,19 @@ final class ChatGPTUsageProviderTests: XCTestCase {
         XCTAssertEqual(provider.id, "chatgpt")
         XCTAssertEqual(provider.displayName, "ChatGPT")
     }
+
+    // MARK: - 10. Two windows of the same duration keep distinct names
+
+    func test_twoFiveHourWindows_getDistinctNames() async throws {
+        let (provider, _) = try provider(fixture: "wham-usage-two-identical-windows.json")
+
+        let limits = try await provider.fetchLimits()
+
+        // The name IS the row identity in the panel, so a collision here is how
+        // one row silently renders as a copy of another.
+        XCTAssertEqual(limits.map(\.name), ["Session (5h)", "Session (5h) (2)"])
+        XCTAssertEqual(Set(limits.map(\.name)).count, limits.count)
+        XCTAssertEqual(limits[0].usedPercentRounded, 12)
+        XCTAssertEqual(limits[1].usedPercentRounded, 88)
+    }
 }

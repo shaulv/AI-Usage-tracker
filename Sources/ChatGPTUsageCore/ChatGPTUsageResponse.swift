@@ -139,6 +139,9 @@ struct ChatGPTUsageResponse: Decodable {
             }
         }
 
-        return limits
+        // Names are the row identity in the panel, so duplicates must not leave
+        // this function: two windows of the same duration are a legitimate
+        // payload, not an error.
+        return UsageLimit.uniqued(limits)
     }
 }

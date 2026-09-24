@@ -16,13 +16,17 @@ check() { # check <label> <expected> <actual>
 }
 
 echo "== counts =="
-check "swift files"        14 "$(find . -name '*.swift' | wc -l | tr -d ' ')"
-check "test functions"     37 "$(grep -rhoE 'func test_' Tests | wc -l | tr -d ' ')"
-check "provider tests"     16 "$(grep -cE 'func test_' Tests/ChatGPTUsageCoreTests/ChatGPTUsageProviderTests.swift | tr -d ' ')"
-check "credentials tests"  14 "$(grep -cE 'func test_' Tests/ChatGPTUsageCoreTests/CodexCredentialsTests.swift | tr -d ' ')"
-check "store tests"         7 "$(grep -cE 'func test_' Tests/ChatGPTUsageCoreTests/UsageStoreTests.swift | tr -d ' ')"
-check "json fixtures"      11 "$(ls Tests/ChatGPTUsageCoreTests/Fixtures/*.json | wc -l | tr -d ' ')"
-check "html fixtures"       1 "$(ls Tests/ChatGPTUsageCoreTests/Fixtures/*.html | wc -l | tr -d ' ')"
+# .build/ is build output, never source: prune it everywhere or a stale
+# derived file makes every count a lie.
+check "swift files"        23 "$(find . -path './.build' -prune -o -name '*.swift' -print | wc -l | tr -d ' ')"
+check "test functions"     70 "$(grep -rhoE 'func test_' Tests | wc -l | tr -d ' ')"
+check "provider tests"     17 "$(grep -cE 'func test_' Tests/ChatGPTUsageCoreTests/ChatGPTUsageProviderTests.swift | tr -d ' ')"
+check "credentials tests"  15 "$(grep -cE 'func test_' Tests/ChatGPTUsageCoreTests/CodexCredentialsTests.swift | tr -d ' ')"
+check "store tests"        12 "$(grep -cE 'func test_' Tests/ChatGPTUsageCoreTests/UsageStoreTests.swift | tr -d ' ')"
+check "claude tests"       19 "$(grep -cE 'func test_' Tests/ChatGPTUsageCoreTests/ClaudeUsageProviderTests.swift | tr -d ' ')"
+check "header tests"        7 "$(grep -cE 'func test_' Tests/ChatGPTUsageCoreTests/HeaderFormatterTests.swift | tr -d ' ')"
+check "json fixtures"      15 "$(ls Tests/ChatGPTUsageCoreTests/Fixtures/*.json | wc -l | tr -d ' ')"
+check "html fixtures"       2 "$(ls Tests/ChatGPTUsageCoreTests/Fixtures/*.html | wc -l | tr -d ' ')"
 
 echo
 echo "== every user-facing message in Sources/ must appear in README.md =="
@@ -57,7 +61,7 @@ PY
 
 echo
 echo "== banned placeholder patterns in Swift =="
-if grep -rn -E 'TODO|FIXME|implement here|rest of (the )?code|similar to above|continue pattern|for brevity' --include='*.swift' . ; then
+if grep -rn -E 'TODO|FIXME|implement here|rest of (the )?code|similar to above|continue pattern|for brevity' --include='*.swift' --exclude-dir='.build' . ; then
   echo "FAIL  placeholders found"; fail=1
 else
   echo "ok    none"
@@ -87,7 +91,8 @@ def strip(src):
         out.append(c); i+=1
     return ''.join(out)
 bad=0
-for f in sorted(pathlib.Path('.').rglob('*.swift')):
+for f in sorted(p for p in pathlib.Path('.').rglob('*.swift') if '.build' not in p.parts):
+    s=strip(f.read_text())
     s=strip(f.read_text())
     if s.count('{') != s.count('}'):
         print(f"FAIL  {f}: {s.count('{')} open vs {s.count('}')} close"); bad=1
@@ -103,7 +108,7 @@ if grep -rn 'write(to:\|removeItem\|FileHandle' Sources/ ; then
 else
   echo "ok    Sources/ never writes"
 fi
-check "URLSession call sites" 1 "$(grep -rc 'URLSession(' Sources/ChatGPTUsageCore/ChatGPTUsageProvider.swift | tr -d ' ')"
+check "URLSession call sites" 1 "$(grep -o 'URLSession(' Sources/ChatGPTUsageCore/ChatGPTUsageProvider.swift | wc -l | tr -d ' ')"
 
 echo
 echo "== fixtures parse =="

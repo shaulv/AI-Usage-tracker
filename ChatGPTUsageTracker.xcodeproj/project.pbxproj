@@ -7,20 +7,28 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		096FFD6C2A48F3C8340FB04A /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A844750E9093BC3604BEC419 /* AppDelegate.swift */; };
 		233B74B227D572DC1E98EFB1 /* ThresholdColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = D755E13F07D2F8DA06060AB1 /* ThresholdColors.swift */; };
 		2FDBEE0E6ACCF80F4F096C4F /* CodexCredentialsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 753C5A26573B31C6AD19DB35 /* CodexCredentialsTests.swift */; };
 		337474310658DBF18E0AAD81 /* ChatGPTUsageProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9751E1C54AEF4E16019B58AB /* ChatGPTUsageProviderTests.swift */; };
 		44F8DAB6D203B30FECD50F8B /* UsageStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 317FA02300E30D763B728BEE /* UsageStoreTests.swift */; };
+		46B0C4C78C72F30844423CBC /* ClaudeCredentials.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC9A21ED8B5288BABC7E1DEC /* ClaudeCredentials.swift */; };
 		497C8D774189B5271268DE9B /* ChatGPTUsageResponse.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66C17B70B7D17D5653638511 /* ChatGPTUsageResponse.swift */; };
 		58810C23EF284F84BD472014 /* RelativeTime.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2680959AF07A1C377E86042 /* RelativeTime.swift */; };
 		59712A989E84E822905D3A56 /* ChatGPTUsageTrackerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98788F41FE7F1DC7E8B065BA /* ChatGPTUsageTrackerApp.swift */; };
 		59F945A33C732E58302CFD9D /* UsageStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = E451DE39F7C4CCE542FF5227 /* UsageStore.swift */; };
 		5B3D8F8C8FE3483BED8CE7E4 /* ChatGPTUsageCore.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 7AF66DAAA66534EEF37AB8B5 /* ChatGPTUsageCore.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		67A8D76422A114828FF601DE /* HeaderFormatterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5E8964F1E74F3D964945EE9 /* HeaderFormatterTests.swift */; };
+		7037EA6EC9A0A99C6FBAF412 /* ClaudeUsageResponse.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1163514BBABA996BD7CAFFF /* ClaudeUsageResponse.swift */; };
 		7152521160318BC8D881BC61 /* ChatGPTUsageCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7AF66DAAA66534EEF37AB8B5 /* ChatGPTUsageCore.framework */; };
 		8673B66C3A29F8E053F87E5A /* ChatGPTUsageProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8AA5CA63687603426025A6E /* ChatGPTUsageProvider.swift */; };
 		8EFFC49DD9580F6232D4B35E /* LimitsPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E2FB871FF02697CA5F8F0E4 /* LimitsPanel.swift */; };
+		9DC964A7FE3482F28E7759D6 /* ClaudeUsageProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9594A62AFC018171FFF1F8F6 /* ClaudeUsageProviderTests.swift */; };
+		A1BF92246604BDC0B0B5FD35 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8003BB44FE7EF68095ADB6E4 /* AppSettings.swift */; };
 		DF41A6FADAC4BB18906B8F7B /* TestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA19472C19D63278A459166B /* TestSupport.swift */; };
+		DF745C3B6D616E63D91BF25D /* ClaudeUsageProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF918AE01C8A831239A56540 /* ClaudeUsageProvider.swift */; };
 		EB592A004080E76E22842143 /* ChatGPTUsageCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7AF66DAAA66534EEF37AB8B5 /* ChatGPTUsageCore.framework */; };
+		EE0E5CBE92BB3CD3254FE045 /* HeaderFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF2DA81ECE45F1478F2C1056 /* HeaderFormatter.swift */; };
 		EF99610AFEC9887F395D6F54 /* CodexCredentials.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0D22989CF32EB1563F2356 /* CodexCredentials.swift */; };
 		F93B918FEADCBBB875CF9959 /* UsageLimit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EDAF0D86E7DDDE64EEBFF56 /* UsageLimit.swift */; };
 		FB4128C7D63A13425A6FD0EB /* ChatGPTUsageCore.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 7AF66DAAA66534EEF37AB8B5 /* ChatGPTUsageCore.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
@@ -83,15 +91,23 @@
 		66C17B70B7D17D5653638511 /* ChatGPTUsageResponse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatGPTUsageResponse.swift; sourceTree = "<group>"; };
 		753C5A26573B31C6AD19DB35 /* CodexCredentialsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexCredentialsTests.swift; sourceTree = "<group>"; };
 		7AF66DAAA66534EEF37AB8B5 /* ChatGPTUsageCore.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = ChatGPTUsageCore.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		8003BB44FE7EF68095ADB6E4 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
+		9594A62AFC018171FFF1F8F6 /* ClaudeUsageProviderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeUsageProviderTests.swift; sourceTree = "<group>"; };
 		9751E1C54AEF4E16019B58AB /* ChatGPTUsageProviderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatGPTUsageProviderTests.swift; sourceTree = "<group>"; };
 		98788F41FE7F1DC7E8B065BA /* ChatGPTUsageTrackerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatGPTUsageTrackerApp.swift; sourceTree = "<group>"; };
 		A2680959AF07A1C377E86042 /* RelativeTime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelativeTime.swift; sourceTree = "<group>"; };
+		A5E8964F1E74F3D964945EE9 /* HeaderFormatterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeaderFormatterTests.swift; sourceTree = "<group>"; };
+		A844750E9093BC3604BEC419 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		B8AA5CA63687603426025A6E /* ChatGPTUsageProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatGPTUsageProvider.swift; sourceTree = "<group>"; };
+		BC9A21ED8B5288BABC7E1DEC /* ClaudeCredentials.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeCredentials.swift; sourceTree = "<group>"; };
 		C485190EC81951082EB7C195 /* ChatGPTUsageCoreTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ChatGPTUsageCoreTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		CF918AE01C8A831239A56540 /* ClaudeUsageProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeUsageProvider.swift; sourceTree = "<group>"; };
 		D755E13F07D2F8DA06060AB1 /* ThresholdColors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThresholdColors.swift; sourceTree = "<group>"; };
 		E451DE39F7C4CCE542FF5227 /* UsageStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageStore.swift; sourceTree = "<group>"; };
+		F1163514BBABA996BD7CAFFF /* ClaudeUsageResponse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeUsageResponse.swift; sourceTree = "<group>"; };
 		FA0D22989CF32EB1563F2356 /* CodexCredentials.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexCredentials.swift; sourceTree = "<group>"; };
 		FA19472C19D63278A459166B /* TestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestSupport.swift; sourceTree = "<group>"; };
+		FF2DA81ECE45F1478F2C1056 /* HeaderFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeaderFormatter.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -118,7 +134,9 @@
 			isa = PBXGroup;
 			children = (
 				9751E1C54AEF4E16019B58AB /* ChatGPTUsageProviderTests.swift */,
+				9594A62AFC018171FFF1F8F6 /* ClaudeUsageProviderTests.swift */,
 				753C5A26573B31C6AD19DB35 /* CodexCredentialsTests.swift */,
+				A5E8964F1E74F3D964945EE9 /* HeaderFormatterTests.swift */,
 				FA19472C19D63278A459166B /* TestSupport.swift */,
 				317FA02300E30D763B728BEE /* UsageStoreTests.swift */,
 			);
@@ -130,7 +148,11 @@
 			children = (
 				B8AA5CA63687603426025A6E /* ChatGPTUsageProvider.swift */,
 				66C17B70B7D17D5653638511 /* ChatGPTUsageResponse.swift */,
+				BC9A21ED8B5288BABC7E1DEC /* ClaudeCredentials.swift */,
+				CF918AE01C8A831239A56540 /* ClaudeUsageProvider.swift */,
+				F1163514BBABA996BD7CAFFF /* ClaudeUsageResponse.swift */,
 				FA0D22989CF32EB1563F2356 /* CodexCredentials.swift */,
+				FF2DA81ECE45F1478F2C1056 /* HeaderFormatter.swift */,
 				5EDAF0D86E7DDDE64EEBFF56 /* UsageLimit.swift */,
 				E451DE39F7C4CCE542FF5227 /* UsageStore.swift */,
 			);
@@ -169,6 +191,8 @@
 		CF3FFF331ABB61F1E692A3F8 /* App */ = {
 			isa = PBXGroup;
 			children = (
+				A844750E9093BC3604BEC419 /* AppDelegate.swift */,
+				8003BB44FE7EF68095ADB6E4 /* AppSettings.swift */,
 				98788F41FE7F1DC7E8B065BA /* ChatGPTUsageTrackerApp.swift */,
 			);
 			path = App;
@@ -293,6 +317,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				096FFD6C2A48F3C8340FB04A /* AppDelegate.swift in Sources */,
+				A1BF92246604BDC0B0B5FD35 /* AppSettings.swift in Sources */,
 				59712A989E84E822905D3A56 /* ChatGPTUsageTrackerApp.swift in Sources */,
 				8EFFC49DD9580F6232D4B35E /* LimitsPanel.swift in Sources */,
 				58810C23EF284F84BD472014 /* RelativeTime.swift in Sources */,
@@ -305,7 +331,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				337474310658DBF18E0AAD81 /* ChatGPTUsageProviderTests.swift in Sources */,
+				9DC964A7FE3482F28E7759D6 /* ClaudeUsageProviderTests.swift in Sources */,
 				2FDBEE0E6ACCF80F4F096C4F /* CodexCredentialsTests.swift in Sources */,
+				67A8D76422A114828FF601DE /* HeaderFormatterTests.swift in Sources */,
 				DF41A6FADAC4BB18906B8F7B /* TestSupport.swift in Sources */,
 				44F8DAB6D203B30FECD50F8B /* UsageStoreTests.swift in Sources */,
 			);
@@ -317,7 +345,11 @@
 			files = (
 				8673B66C3A29F8E053F87E5A /* ChatGPTUsageProvider.swift in Sources */,
 				497C8D774189B5271268DE9B /* ChatGPTUsageResponse.swift in Sources */,
+				46B0C4C78C72F30844423CBC /* ClaudeCredentials.swift in Sources */,
+				DF745C3B6D616E63D91BF25D /* ClaudeUsageProvider.swift in Sources */,
+				7037EA6EC9A0A99C6FBAF412 /* ClaudeUsageResponse.swift in Sources */,
 				EF99610AFEC9887F395D6F54 /* CodexCredentials.swift in Sources */,
+				EE0E5CBE92BB3CD3254FE045 /* HeaderFormatter.swift in Sources */,
 				F93B918FEADCBBB875CF9959 /* UsageLimit.swift in Sources */,
 				59F945A33C732E58302CFD9D /* UsageStore.swift in Sources */,
 			);
@@ -360,6 +392,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
+				OTHER_LDFLAGS = "$(inherited) -lsqlite3";
 				PRODUCT_BUNDLE_IDENTIFIER = local.chatgptusagetracker.app;
 				PRODUCT_NAME = "ChatGPT Usage";
 				SDKROOT = macosx;
@@ -383,6 +416,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
+				OTHER_LDFLAGS = "$(inherited) -lsqlite3";
 				PRODUCT_BUNDLE_IDENTIFIER = local.chatgptusagetracker.core;
 				PRODUCT_NAME = ChatGPTUsageCore;
 				SDKROOT = macosx;
@@ -407,6 +441,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
+				OTHER_LDFLAGS = "$(inherited) -lsqlite3";
 				PRODUCT_BUNDLE_IDENTIFIER = local.chatgptusagetracker.app;
 				PRODUCT_NAME = "ChatGPT Usage";
 				SDKROOT = macosx;
@@ -424,6 +459,7 @@
 					"@executable_path/../Frameworks",
 					"@loader_path/../Frameworks",
 				);
+				OTHER_LDFLAGS = "$(inherited) -lsqlite3";
 				PRODUCT_BUNDLE_IDENTIFIER = local.chatgptusagetracker.tests;
 				SDKROOT = macosx;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ChatGPT Usage.app/Contents/MacOS/ChatGPT Usage";
@@ -464,7 +500,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -507,6 +543,7 @@
 					"@executable_path/../Frameworks",
 					"@loader_path/../Frameworks",
 				);
+				OTHER_LDFLAGS = "$(inherited) -lsqlite3";
 				PRODUCT_BUNDLE_IDENTIFIER = local.chatgptusagetracker.tests;
 				SDKROOT = macosx;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ChatGPT Usage.app/Contents/MacOS/ChatGPT Usage";
@@ -547,7 +584,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -589,6 +626,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
+				OTHER_LDFLAGS = "$(inherited) -lsqlite3";
 				PRODUCT_BUNDLE_IDENTIFIER = local.chatgptusagetracker.core;
 				PRODUCT_NAME = ChatGPTUsageCore;
 				SDKROOT = macosx;

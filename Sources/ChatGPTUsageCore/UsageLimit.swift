@@ -44,6 +44,34 @@ public struct UsageLimit: Equatable, Identifiable {
     public var usedPercentRounded: Int {
         Int((usedFraction * 100).rounded())
     }
+
+    /// How much of this window is left, as an integer 0...100. Flips the percent
+    /// the user sees from "used" to "left": 100 - usedPercentRounded, clamped so a
+    /// server bug that produced >100 or <0 cannot yield a negative or >100
+    /// remaining value.
+    public var remainingPercentRounded: Int {
+        min(max(100 - usedPercentRounded, 0), 100)
+    }
+
+    /// Names double as row identity in the panel, so they must be unique within
+    /// one payload. Duration-derived naming can legitimately collide: a payload
+    /// with two 5-hour windows produces "Session (5h)" twice, and duplicate
+    /// SwiftUI identities are how a row silently renders as a copy of another
+    /// (that is exactly the defect this fixes). Suffixing here, once, keeps every
+    /// consumer honest without a second guard in the UI.
+    public static func uniqued(_ limits: [UsageLimit]) -> [UsageLimit] {
+        var seen: [String: Int] = [:]
+        return limits.map { limit in
+            let count = (seen[limit.name] ?? 0) + 1
+            seen[limit.name] = count
+            guard count > 1 else { return limit }
+            return UsageLimit(
+                name: "\(limit.name) (\(count))",
+                usedFraction: limit.usedFraction,
+                resetsAt: limit.resetsAt
+            )
+        }
+    }
 }
 
 /// Everything that can go wrong, split by what the user must do about it.

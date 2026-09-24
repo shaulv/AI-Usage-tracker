@@ -16,8 +16,21 @@ let package = Package(
             name: "ChatGPTUsageCoreTests",
             dependencies: ["ChatGPTUsageCore"],
             path: "Tests/ChatGPTUsageCoreTests",
-            exclude: ["Fixtures"],
+            // Fixtures are declared as a copied resource only. Do not also
+            // list them in `exclude`: SwiftPM drops the resource (and the
+            // generated Bundle.module accessor) when a path is both excluded
+            // and declared, which breaks the bundle-first fixture loader in
+            // TestSupport.swift.
             resources: [.copy("Fixtures")]
+        ),
+        // Live-state probe: `swift run usage-probe chatgpt | claude | both`.
+        // Separate from the tests because the suite must stay offline while this
+        // one is allowed to read real credentials and hit the network. It is
+        // built from the same core, so what it prints is what the panel shows.
+        .executableTarget(
+            name: "usage-probe",
+            dependencies: ["ChatGPTUsageCore"],
+            path: "Sources/UsageProbe"
         ),
     ]
 )

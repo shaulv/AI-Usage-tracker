@@ -180,4 +180,30 @@ final class CodexCredentialsTests: XCTestCase {
         XCTAssertEqual(WindowNamer.humanize(""), "")
         XCTAssertEqual(WindowNamer.humanize("   "), "")
     }
+
+    func test_uniqued_suffixesRepeatedNamesSoRowIdentityStaysUnique() {
+        let input = [
+            UsageLimit(name: "Session (5h)", usedFraction: 0.1, resetsAt: nil),
+            UsageLimit(name: "Session (5h)", usedFraction: 0.9, resetsAt: nil),
+            UsageLimit(name: "Weekly", usedFraction: 0.5, resetsAt: nil),
+            UsageLimit(name: "Session (5h)", usedFraction: 0.3, resetsAt: nil),
+        ]
+
+        let result = UsageLimit.uniqued(input)
+
+        XCTAssertEqual(
+            result.map(\.name),
+            ["Session (5h)", "Session (5h) (2)", "Weekly", "Session (5h) (3)"]
+        )
+        XCTAssertEqual(Set(result.map(\.name)).count, result.count)
+        // Order and values survive untouched: uniquing must never reorder data.
+        XCTAssertEqual(result.map(\.usedFraction), [0.1, 0.9, 0.5, 0.3])
+
+        // Claude's own buckets carry literal names ("Session", "Weekly",
+        // "Weekly (Opus)", "Weekly (Sonnet)", "Extra usage"), so no Claude
+        // payload can reach a collision. The helper is still called from that
+        // mapper so the guarantee lives in one place.
+        XCTAssertEqual(UsageLimit.uniqued([]).count, 0)
+        XCTAssertEqual(UsageLimit.uniqued([input[2]]).map(\.name), ["Weekly"])
+    }
 }

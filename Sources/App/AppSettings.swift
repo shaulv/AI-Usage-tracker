@@ -1,0 +1,45 @@
+import Foundation
+import ChatGPTUsageCore
+
+/// Every user-facing preference, one UserDefaults key each, so the right-click
+/// menu and the panel share one source of truth and nothing is decided in a
+/// view. Written on change, read once at launch.
+final class AppSettings: ObservableObject {
+    private let defaults: UserDefaults
+
+    /// Whether the floating panel was visible when the app last ran: the panel
+    /// reopens in the state the user left it in.
+    @Published var panelEnabled: Bool {
+        didSet { defaults.set(panelEnabled, forKey: "panelEnabled") }
+    }
+    /// Provider toggles. Disabling a provider stops its timer and hides its
+    /// section; it never deletes data or changes the other provider.
+    @Published var chatGPTEnabled: Bool {
+        didSet { defaults.set(chatGPTEnabled, forKey: "chatGPTEnabled") }
+    }
+    @Published var claudeEnabled: Bool {
+        didSet { defaults.set(claudeEnabled, forKey: "claudeEnabled") }
+    }
+    /// What the menu-bar status item shows: bare session percent, or the
+    /// `S..% W..%` pair. A fresh install starts on the pair: a weekly window the
+    /// user cannot see is the more expensive blind spot of the two.
+    @Published var headerStyle: HeaderStyle {
+        didSet { defaults.set(headerStyle.rawValue, forKey: "headerStyle") }
+    }
+    /// Whether the menu bar and the panel report how much is LEFT (100 - used)
+    /// rather than how much is used. Defaults on: the remaining count is the one
+    /// that drives behavior, so it is the more useful glance.
+    @Published var showRemaining: Bool {
+        didSet { defaults.set(showRemaining, forKey: "showRemaining") }
+    }
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        self.panelEnabled = defaults.object(forKey: "panelEnabled") as? Bool ?? true
+        self.chatGPTEnabled = defaults.object(forKey: "chatGPTEnabled") as? Bool ?? true
+        self.claudeEnabled = defaults.object(forKey: "claudeEnabled") as? Bool ?? true
+        let rawStyle = defaults.string(forKey: "headerStyle") ?? ""
+        self.headerStyle = HeaderStyle(rawValue: rawStyle) ?? .sessionWeekly
+        self.showRemaining = defaults.object(forKey: "showRemaining") as? Bool ?? true
+    }
+}

@@ -1,191 +1,361 @@
 import SwiftUI
 import ChatGPTUsageCore
 import AppKit
-import ServiceManagement
 
-/// The whole UI. Fixed 320 pt wide, 8 pt spacing grid, no layout shift when a
-/// state changes: every state occupies the same slot and only its text changes.
+/// The whole panel. Responsive on width:
+///  - wide: one condensed row — the usage chips left, the refresh button right.
+///  - narrow: the pre-redesign layout, each limit on its own line.
+// / There is no title text and no quit button in the panel. Quit, start-at-login,
+/// and the on/off toggles live in the right-click menu, so the panel is only ever
+/// as tall as it needs to be. Every state occupies the same slot and only its
+/// text changes, so no state change can shift the layout under the cursor.
 struct LimitsPanel: View {
-    @EnvironmentObject private var store: UsageStore
+    @EnvironmentObject private var chatGPT: UsageStore
+    @EnvironmentObject private var claude: UsageStore
+    @EnvironmentObject private var settings: AppSettings
     @Environment(\.colorScheme) private var colorScheme
 
-    private let panelWidth: CGFloat = 320
-    private let gap: CGFloat = 8
+    private let gap: CGFloat = 6
+    /// Below this width the strip cannot hold chips comfortably: stack instead.
+    private let stripBreakpoint: CGFloat = 560
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            header
-            Divider()
-            content
-            Divider()
-            footer
-        }
-        .padding(16)
-        .frame(width: panelWidth)
-    }
-
-    private var header: some View {
-        HStack(spacing: gap) {
-            Text("ChatGPT")
-                .font(.headline)
-            Spacer()
-            Button {
-                Task { @MainActor in
-                    await store.refresh()
-                }
-            } label: {
-                if case .refreshing = store.state {
-                    ProgressView()
-                        .controlSize(.small)
-                } else {
-                    Image(systemName: "arrow.clockwise")
-                }
+        GeometryReader { geo in
+            VStack(alignment: .leading, spacing: 4) {
+                usageArea(isStrip: geo.size.width >= stripBreakpoint)
+                disabledProviderHint
+                footer
             }
-            .buttonStyle(.borderless)
-            .help("Refresh now")
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
-        .frame(height: 24)
     }
 
+    // MARK: - Usage area (wide = single condensed row, narrow = stacked)
+
+    /// Wide: `stripRows` + a spacer + the refresh button, all on one line —
+    /// usages left, refresh right. Narrow: a top line with the refresh button
+    /// on the right, then one line per limit (the pre-redesign layout). Empty
+    /// and failed states share the wide line shape so the slot never jumps.
     @ViewBuilder
-    private var content: some View {
-        switch store.state {
-        case .failed(let message):
-            failedView(message)
-        default:
-            if let limits = store.limits, !limits.isEmpty {
-                limitsList(limits)
+    private func usageArea(isStrip: Bool) -> some View {
+        let rows = enabledStores.flatMap { providerRows($0) }
+        if rows.isEmpty {
+            HStack(spacing: gap) {
+                emptyOrFailed
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Spacer()
+                refreshButton
+            }
+            .frame(height: 20)
+        } else if isStrip {
+            HStack(spacing: gap) {
+                stripRows(rows)
+                Spacer()
+                refreshButton
+            }
+        } else {
+            VStack(alignment: .leading, spacing: gap) {
+                stackedRows(rows)
+                HStack { Spacer(); refreshButton }
+            }
+        }
+    }
+
+    private var refreshButton: some View {
+        Button {
+            Task { @MainActor in
+                if settings.chatGPTEnabled { await chatGPT.refresh() }
+                if settings.claudeEnabled { await claude.refresh() }
+            }
+        } label: {
+            if isRefreshing {
+                ProgressView().controlSize(.small)
             } else {
-                emptyView
+                Image(systemName: "arrow.clockwise")
             }
+        }
+        .buttonStyle(.borderless)
+        .help("Refresh now")
+    }
+
+    private var isRefreshing: Bool {
+        if case .refreshing = chatGPT.state { return true }
+        if case .refreshing = claude.state { return true }
+        return false
+    }
+
+    /// The percent this row shows: remaining (100 - used) when `showRemaining`
+    /// is on, else used. One policy site for both row styles so they can never
+    /// disagree.
+    private func percent(for row: ProviderRow) -> Int {
+        settings.showRemaining ? row.limit.remainingPercentRounded : row.limit.usedPercentRounded
+    }
+
+    // MARK: - Rows
+
+    /// Strip layout: one line of compact chips, providers in order, a small
+    /// provider tag only when both are on so a single provider stays clean.
+    private func stripRows(_ rows: [ProviderRow]) -> some View {
+        HStack(spacing: gap) {
+            ForEach(rows) { row in
+                rowChip(row, showProvider: enabledStores.count > 1)
+            }
+            Spacer(minLength: 0)
         }
     }
 
-    /// The rows ARE the selection control. One control, one home: there is no
-    /// separate picker that duplicates this choice, and clicking a row is also
-    /// its keyboard action, so the affordance is not mouse-only.
-    private func limitsList(_ limits: [UsageLimit]) -> some View {
+    /// Stacked layout: the original card rows, one per limit, two providers
+    /// under uppercase labels. A provider with nothing to show contributes its
+    /// message instead — failure names the provider so the user knows which fix
+    /// applies, and an honest empty says so rather than vanishing while its
+    /// sibling lists rows.
+    private func stackedRows(_ rows: [ProviderRow]) -> some View {
         VStack(alignment: .leading, spacing: gap) {
-            Text("Menu bar shows the selected limit")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            ForEach(limits) { limit in
-                let isSelected = limit.name == store.selectedLimit?.name
-                Button {
-                    store.selectedLimitName = limit.name
-                } label: {
-                    LimitRow(limit: limit, isSelected: isSelected, gap: gap)
+            ForEach(enabledStores, id: \.name) { provider in
+                let own = rows.filter { $0.providerName == provider.name }
+                if !own.isEmpty {
+                    if enabledStores.count > 1 {
+                        Text(provider.name)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .textCase(.uppercase)
+                    }
+                    ForEach(own) { row in
+                        selectButton(row) {
+                            stackedRowView(row)
+                        }
+                    }
+                } else if let message = providerMessage(provider) {
+                    Text(message)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                .buttonStyle(PanelRowButtonStyle())
-                .help(isSelected ? "Shown in the menu bar" : "Show this limit in the menu bar")
             }
         }
     }
 
-    private func failedView(_ message: String) -> some View {
+    /// What a provider with no rows says, in the same slot its rows would
+    /// occupy. Nil when the provider is merely between fetches with data on
+    /// the way (its rows will be back on the next publish).
+    private func providerMessage(_ provider: (name: String, store: UsageStore)) -> String? {
+        switch provider.store.state {
+        case .failed(let message):
+            return "\(provider.name): \(message)"
+        case .refreshing where provider.store.limits?.isEmpty ?? true:
+            return "\(provider.name): updating…"
+        case .ok where provider.store.limits?.isEmpty ?? true:
+            return "\(provider.name): no usage limits available"
+        case .idle where provider.store.limits == nil:
+            return "\(provider.name): not fetched yet"
+        default:
+            return nil
+        }
+    }
+
+    /// A provider the user switched off gets one muted line. Without it "Claude
+    /// is missing" and "Claude is off" look identical, and only the second one
+    /// is a toggle away from being fixed. Both providers off is already
+    /// summarized in the footer, so this deliberately stays a single line.
+    @ViewBuilder
+    private var disabledProviderHint: some View {
+        if let off = disabledProviderName {
+            Text("\(off) off")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+                .lineLimit(1)
+                .help("Turn \(off) back on from the right-click menu")
+        }
+    }
+
+    private var disabledProviderName: String? {
+        let off = [
+            settings.chatGPTEnabled ? nil : "ChatGPT",
+            settings.claudeEnabled ? nil : "Claude",
+        ].compactMap { $0 }
+        return off.count == 1 ? off[0] : nil
+    }
+
+    /// A provider the user switched off contributes nothing: no rows, no
+    /// status, no error. Its data is untouched, just not shown.
+    private struct ProviderRow: Identifiable {
+        let store: UsageStore
+        let limit: UsageLimit
+        let providerName: String
+        let isSelected: Bool
+
+        /// Unique per ROW, not per provider. Identity by provider alone was the
+        /// defect: every row of a provider shared one SwiftUI identity, so
+        /// SwiftUI reused a single view and its content and the second row
+        /// rendered as a copy of the first ("Session (5h)" drawn twice, the
+        /// weekly row never appearing).
+        var id: String { "\(providerName)|\(limit.name)" }
+    }
+
+    private var enabledStores: [(name: String, store: UsageStore)] {
+        var list: [(String, UsageStore)] = []
+        if settings.chatGPTEnabled { list.append(("ChatGPT", chatGPT)) }
+        if settings.claudeEnabled { list.append(("Claude", claude)) }
+        return list
+    }
+
+    private func providerRows(_ provider: (name: String, store: UsageStore)) -> [ProviderRow] {
+        guard let limits = provider.store.limits, !limits.isEmpty else { return [] }
+        return limits.map { limit in
+            ProviderRow(
+                store: provider.store,
+                limit: limit,
+                providerName: provider.name,
+                isSelected: limit.name == provider.store.selectedLimit?.name
+            )
+        }
+    }
+
+    /// Single-click-to-promote row. Wraps each chip so clicking it makes that
+    /// window the menu-bar value, with a stable identity per row.
+    private func selectButton<Label: View>(_ row: ProviderRow, @ViewBuilder label: () -> Label) -> some View {
+        Button {
+            row.store.selectedLimitName = row.limit.name
+        } label: {
+            label()
+        }
+        .buttonStyle(PanelRowButtonStyle())
+        .help(row.isSelected
+            ? "Shown in the menu bar"
+            : "Show this limit in the menu bar")
+    }
+
+    private func rowChip(_ row: ProviderRow, showProvider: Bool) -> some View {
+        selectButton(row) {
+            HStack(spacing: 4) {
+                Circle()
+                    .fill(thresholdColor(row.limit))
+                    .frame(width: 6, height: 6)
+                if showProvider {
+                    Text(row.providerName)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                Text("\(percent(for: row))%")
+                    .font(.caption.monospacedDigit().weight(.semibold))
+                Text(RelativeTime.string(from: Date(), to: row.limit.resetsAt))
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.vertical, 3)
+            .padding(.horizontal, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .fill(row.isSelected ? Color.primary.opacity(0.08) : Color.clear)
+            )
+            .contentShape(Rectangle())
+        }
+    }
+
+    private func stackedRowView(_ row: ProviderRow) -> some View {
+        HStack(spacing: gap) {
+            Circle()
+                .fill(thresholdColor(row.limit))
+                .frame(width: 6, height: 6)
+            Text(row.limit.name)
+                .font(.callout)
+                .lineLimit(1)
+                .truncationMode(.tail)
+            Spacer(minLength: gap)
+            Text("\(percent(for: row))%")
+                .font(.callout.monospacedDigit().weight(.semibold))
+            Text(RelativeTime.string(from: Date(), to: row.limit.resetsAt))
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
+                .frame(width: 70, alignment: .trailing)
+        }
+        .padding(.vertical, 2)
+        .padding(.horizontal, 4)
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(row.isSelected ? Color.primary.opacity(0.08) : Color.clear)
+        )
+        .contentShape(Rectangle())
+    }
+
+    private func thresholdColor(_ limit: UsageLimit) -> Color {
+        ThresholdColors.color(
+            for: ThresholdColors.Level(usedFraction: limit.usedFraction),
+            scheme: colorScheme
+        )
+    }
+
+    /// No rows anywhere: distinguish an honest empty (ok) from a failure, and
+    /// a failure names the provider so the user knows which fix applies.
+    @ViewBuilder
+    private var emptyOrFailed: some View {
         VStack(alignment: .leading, spacing: gap) {
-            Text(message)
-                .font(.body)
-                .foregroundStyle(.primary)
-                .fixedSize(horizontal: false, vertical: true)
+            ForEach(enabledStores, id: \.name) { provider in
+                switch provider.store.state {
+                case .failed(let message):
+                    Text("\(provider.name): \(message)")
+                        .font(.callout)
+                        .fixedSize(horizontal: false, vertical: true)
+                default:
+                    if provider.store.limits?.isEmpty == true {
+                        Text("\(provider.name): no usage limits available")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
             Text("No usage is shown until a fetch succeeds.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private var emptyView: some View {
-        VStack(alignment: .leading, spacing: gap) {
-            Text("No usage limits available")
-                .font(.body)
-            Text("This account reports no metered windows. Everyday text chat is not metered.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
+    // MARK: - Footer
 
+    /// Status line only. The quit affordance is the right-click menu, not a
+    /// power button here — the panel is for glancing, not for exiting.
     private var footer: some View {
         HStack(spacing: gap) {
             Text(statusText)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
+                .minimumScaleFactor(0.8)
             Spacer()
-            LaunchAtLoginToggle()
-            Button("Quit", action: quit)
-                .buttonStyle(.borderless)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .help("Quit ChatGPT Usage")
+            if let burst = burstHint {
+                Text(burst)
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .help("Percentages are moving - refreshing every 10 seconds")
+            }
         }
-        .frame(height: 20)
     }
 
-    private func quit() {
-        NSApplication.shared.terminate(nil)
-    }
-
-    /// A visible last-updated line, so a silently broken endpoint cannot hide
-    /// behind a stale number.
+    /// Per-provider status, joined. A disabled provider is not reported: its
+    /// state is irrelevant while it is off.
     private var statusText: String {
-        switch store.state {
-        case .idle:
-            return "not fetched yet"
-        case .refreshing:
-            return "updating…"
-        case .ok:
-            return "updated \(store.lastUpdatedText)"
-        case .failed:
-            return "failed, last good \(store.lastUpdatedText)"
+        let parts = enabledStores.map { provider -> String in
+            switch provider.store.state {
+            case .idle: return "\(provider.name): not fetched yet"
+            case .refreshing: return "\(provider.name): updating…"
+            case .ok: return "\(provider.name): updated \(provider.store.lastUpdatedText)"
+            case .failed: return "\(provider.name): failed, last good \(provider.store.lastUpdatedText)"
+            }
         }
+        return parts.isEmpty ? "all providers off" : parts.joined(separator: "  ·  ")
     }
-}
 
-/// One limit. Fixed element order in every row: dot, name, percent, reset.
-/// The percent is the loudest element because it is the thing being scanned.
-private struct LimitRow: View {
-    let limit: UsageLimit
-    let isSelected: Bool
-    let gap: CGFloat
-
-    @Environment(\.colorScheme) private var colorScheme
-
-    var body: some View {
-        HStack(spacing: gap) {
-            Circle()
-                .fill(ThresholdColors.color(
-                    for: ThresholdColors.Level(usedFraction: limit.usedFraction),
-                    scheme: colorScheme
-                ))
-                .frame(width: 8, height: 8)
-
-            Text(limit.name)
-                .font(.body)
-                .lineLimit(1)
-                .truncationMode(.tail)
-
-            Spacer(minLength: gap)
-
-            Text("\(limit.usedPercentRounded)%")
-                .font(.body.monospacedDigit().weight(.semibold))
-
-            Text(RelativeTime.string(from: Date(), to: limit.resetsAt))
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(.secondary)
-                .frame(width: 84, alignment: .trailing)
+    /// Visible fast-cadence hint, so the burst is something the user can see
+    /// rather than a silent traffic change.
+    private var burstHint: String? {
+        let now = Date()
+        let active = enabledStores.contains { provider in
+            if let deadline = provider.store.burstDeadline, now < deadline { return true }
+            return false
         }
-        .padding(.vertical, 4)
-        .padding(.horizontal, 4)
-        .background(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(isSelected ? Color.primary.opacity(0.08) : Color.clear)
-        )
-        .contentShape(Rectangle())
+        return active ? "10s" : nil
     }
 }
 
@@ -195,40 +365,5 @@ private struct PanelRowButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .opacity(configuration.isPressed ? 0.6 : 1)
-    }
-}
-
-/// Launch at login, via the modern API. Registering can fail without a
-/// developer-signed build, so the toggle degrades to a message instead of
-/// silently doing nothing.
-private struct LaunchAtLoginToggle: View {
-    @State private var isOn: Bool = SMAppService.mainApp.status == .enabled
-    @State private var failureMessage: String?
-
-    var body: some View {
-        Toggle(isOn: $isOn) {
-            Text("Start at login")
-        }
-        .toggleStyle(.switch)
-        .controlSize(.mini)
-        .font(.caption)
-        .help(failureMessage ?? "Start this app when you log in")
-        .onChange(of: isOn) { _, newValue in
-            apply(newValue)
-        }
-    }
-
-    private func apply(_ enabled: Bool) {
-        do {
-            if enabled {
-                try SMAppService.mainApp.register()
-            } else {
-                try SMAppService.mainApp.unregister()
-            }
-            failureMessage = nil
-        } catch {
-            failureMessage = "Could not change launch at login: \(error.localizedDescription)"
-            isOn = SMAppService.mainApp.status == .enabled
-        }
     }
 }

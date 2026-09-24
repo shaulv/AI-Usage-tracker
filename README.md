@@ -7,15 +7,15 @@ usage you have consumed, read from ChatGPT's own usage endpoint.
 
 ## Read this first: the state you are inheriting
 
-**This code has never been compiled.** It was written on a Linux machine with no
-Swift toolchain and no Xcode, where no macOS app can be built. Everything here
-is complete and placeholder-free, but unproven by a compiler.
+**This code compiles and passes its test suite.** `swift build` and `swift test` both succeed with just the Swift toolchain; the menu-bar app (`Sources/App`, AppKit) is built via `xcodegen` + Xcode.
+The core framework is Foundation-only, read-only, and injects transport so the suite never touches the network.
+See the Verification section for what ran on this Mac.
 
 Your first job, in order:
 
 1. `swift build` and fix whatever the compiler finds. Expect small syntax
    errors, not design problems.
-2. `swift test`. 37 tests should pass. They cover the core framework only.
+2. `swift test`. 70 tests pass. They cover the core framework only.
 3. Run the `curl` probe below against the real account. Until that returns
    `HTTP 200` with a `used_percent`, nothing else is worth doing.
 4. `xcodegen generate`, open the project, run the app, and look at the panel.
@@ -34,9 +34,18 @@ any change to `Sources/` or `Tests/`, and update this file when it complains.
 
 ## What it does
 
-Shows a percentage in the menu bar. Click it for every limit on the account with
-its reset time. Polls every 5 minutes and on demand. Reads one local file and
-one HTTPS endpoint. Writes nothing, sends nothing, tracks nothing.
+Shows usage percentages in the menu bar — the session window alone (`6%`) or
+session + weekly together (`S6% W47%`), pickable from the right-click menu.
+Click the status item for a floating, draggable, resizable panel with every
+limit on both accounts; stretch it edge-to-edge for a one-line strip that stays
+on top in any space. Right-click the status item for settings: show/hide panel,
+start at login, ChatGPT on/off, Claude on/off, header format, quit.
+
+Polls adaptively: every 60 seconds while the numbers sit still, and every 10
+seconds for a minute once any percentage starts moving. Reads two local
+credential sources and two HTTPS endpoints (ChatGPT's usage endpoint, claude.ai's
+web usage endpoint). Writes nothing back to any credential source, sends
+nothing, tracks nothing.
 
 ---
 
@@ -50,7 +59,15 @@ Five steps, and the code for each:
 | 2 | The app reads that file, pulls out `tokens.access_token` and `tokens.account_id`, and decodes the token's `exp` claim to know when it dies. | `CodexCredentials.swift` |
 | 3 | It sends one GET to `https://chatgpt.com/backend-api/wham/usage` with the token. That endpoint only reports usage. It does not run a model and consumes no quota. | `ChatGPTUsageProvider.swift` |
 | 4 | The response lists metered windows: a percentage used, a window length, and a reset time. Each becomes one `UsageLimit`, named by how long its window is. | `ChatGPTUsageResponse.swift` |
-| 5 | `UsageStore` holds the rows, remembers which one you picked, and drives the timer. The menu bar shows that row's percentage. | `UsageStore.swift`, `Sources/App`, `Sources/UI` |
+| 5 | `UsageStore` holds the rows, remembers which one you picked, and drives the adaptive timer (60s idle, 10s during a movement burst). The menu bar shows the header format the user chose. | `UsageStore.swift`, `Sources/App`, `Sources/UI` |
+
+Claude rides the same five steps with its own sources: Claude Desktop's
+session cookies (read from its Chromium cookie store, decrypted with the
+Keychain's `Claude Safe Storage` key) instead of `auth.json`, and
+`GET claude.ai/api/organizations/{org}/usage` instead of the wham endpoint.
+`ClaudeUsageProvider` mirrors `ChatGPTUsageProvider` line for line: same
+`UsageProvider` protocol, same injected transport, same never-stale rule,
+read-only, never refreshing anything.
 
 If any step fails, the previously shown numbers are discarded and replaced with
 `--%` plus a reason. The app never keeps displaying a stale percentage.
@@ -156,20 +173,33 @@ Sources/ChatGPTUsageCore/
                                      parseCredentials, JWT exp decode
   ChatGPTUsageResponse.swift         Decodable DTOs and toUsageLimits(now:)
   ChatGPTUsageProvider.swift         the one GET and every failure path
-  UsageStore.swift                   selection, 5 minute timer, the never-stale rule
+  UsageStore.swift                   selection, adaptive timer (60s/10s burst),
+                                     the never-stale rule
+  ClaudeCredentials.swift            ClaudeSessionSource protocol,
+                                     ClaudeDesktopSessionSource (Keychain key +
+                                     read-only SQLite cookie decryption)
+  ClaudeUsageResponse.swift          Claude DTOs, ClaudeUsageMapper.limits(from:)
+  ClaudeUsageProvider.swift          the claude.ai GET and every failure path
+  HeaderFormatter.swift              HeaderStyle, title formatting, window lookup
 
-Sources/App/ChatGPTUsageTrackerApp.swift   MenuBarExtra scene
-Sources/UI/LimitsPanel.swift               the panel, rows, status line, launch at login
+Sources/App/ChatGPTUsageTrackerApp.swift   @main entry, delegates to AppDelegate
+Sources/App/AppDelegate.swift              NSStatusItem, NSPanel host, right-click
+                                           menu, both UsageStore instances
+Sources/App/AppSettings.swift              persisted toggles + header style
+Sources/UI/LimitsPanel.swift               the responsive panel: wide shows a single condensed row (chips left, refresh right); narrow stacks one limit per line. No title, no quit button
 Sources/UI/ThresholdColors.swift           per-appearance threshold colors
 Sources/UI/RelativeTime.swift              "in 2h 14m"
+  Sources/UsageProbe/main.swift              live-state probe binary (read-only, hits network)
 
 Tests/ChatGPTUsageCoreTests/
   TestSupport.swift                  fixture loader, StubCredentialsSource,
                                      SpyTransport, FailingTransport, TestDates
-  ChatGPTUsageProviderTests.swift    16 tests
-  CodexCredentialsTests.swift        14 tests
-  UsageStoreTests.swift              7 tests
-  Fixtures/                          11 JSON payloads plus one HTML interstitial
+    ChatGPTUsageProviderTests.swift    17 tests
+  CodexCredentialsTests.swift        15 tests
+  UsageStoreTests.swift              12 tests (incl. burst cadence)
+  ClaudeUsageProviderTests.swift     19 tests
+  HeaderFormatterTests.swift         7 tests
+  Fixtures/                          15 JSON payloads plus two HTML fixtures
 ```
 
 ---
@@ -251,10 +281,15 @@ measured a background suggestion run draining roughly 6% of the weekly window
 per hour. `GET /backend-api/wham/usage` is the read-only path the Codex CLI's
 own usage view uses.
 
-**Why a 5 minute floor on polling.** The windows reset on the scale of hours.
-Faster polling buys nothing and makes the traffic pattern look less like a
-person using a personal tool. `UsageStore.minimumRefreshInterval` enforces it,
-and a test asserts the floor is actually applied.
+**Why a 60 second idle floor with a 10 second movement burst.** The windows
+reset on the scale of hours, so a quiet account does not need faster polling —
+but the user asked to notice movement within a minute. The idle cadence is
+therefore 60 seconds; when any percentage differs from the previous successful
+fetch, a one-minute burst window opens and polls every 10 seconds, re-armed by
+further movement and drained once values sit still. `UsageStore.refreshDelay`
+computes the cadence as a pure function, and tests assert both legs plus the
+failure-clears-the-baseline rule (a recovery after an outage is not movement).
+A failure also exits burst: errors get the slow cadence, never the fast one.
 
 **Why App Sandbox is off.** The app reads `~/.codex/auth.json`, which is outside
 any container a sandboxed app can reach. The honest trade for a personal tool:
@@ -287,6 +322,11 @@ user reports one of these, the fix is on the right, not in the code.
 | `Network error - check your connection` | fetchFailed | `URLError` from the transport | connectivity |
 | `ChatGPT usage service returned HTTP <code>` | fetchFailed | any other non-2xx | server side; retry later |
 | `Unexpected response from ChatGPT usage service` | fetchFailed | body did not decode, or none of `plan_type`, `rate_limit`, `code_review_rate_limit`, `additional_rate_limits` was present | **the endpoint changed.** See "When OpenAI changes something". |
+| `Claude Desktop is not signed in on this Mac` | notConnected | cookie store missing/unreadable, no `sessionKey`/`lastActiveOrg`, or the Keychain key is unavailable | open Claude Desktop and sign in |
+| `Claude is blocked by Cloudflare - open Claude Desktop, then Refresh` | notConnected | HTTP 403 from claude.ai that is a Cloudflare managed challenge — `cf-mitigated: challenge` header, or body contains `Just a moment` / `cf_chl_`, detected by `isCloudflareChallenge` | the session cookie is valid; Cloudflare is challenging the browser. Open Claude Desktop (already signed in) and let it answer the challenge, then Refresh. Do not re-sign-in: it cannot help. |
+| `Claude session expired - open Claude to refresh it` | notConnected | cookie `expires_utc` past, or HTTP 401/403 that is NOT a Cloudflare challenge (aged-out `cf_clearance`) | open Claude Desktop once |
+| `Claude usage service returned HTTP <code>` | fetchFailed | any other non-2xx from claude.ai | server side; retry later |
+| `Unexpected response from Claude usage service` | fetchFailed | body did not decode, or none of `five_hour`, `seven_day`, `seven_day_opus`, `seven_day_sonnet`, `extra_usage`, `limits` was present | **the endpoint changed.** Same drill as the ChatGPT side. |
 
 The panel footer always shows one of: `not fetched yet`, `updating…`,
 `updated HH:mm`, or `failed, last good HH:mm`. That line exists so a silently
@@ -298,28 +338,31 @@ The menu bar shows `--%` whenever there is nothing honest to display.
 
 ## Tests
 
-37 tests, all in the core framework, none of them touching the network or the
+70 tests, all in the core framework, none of them touching the network or the
 real home directory. Transport and credentials source are both injected.
 
 | File | Count | Covers |
 |---|---|---|
 | `ChatGPTUsageProviderTests.swift` | 16 | the captured payload end to end, window naming by duration not position, 30-day and durationless windows, clamping 250 to 100 and -12 to 0, unnamed `additional_rate_limits` entries, unrecognized payload is a failure not an empty list, recognized payload with zero windows is a real empty answer, the expiry gate, 401, 503, an HTML body served as 200, transport failure, and the exact request headers |
 | `CodexCredentialsTests.swift` | 14 | real-shaped `auth.json`, API-key sign-in, missing tokens, malformed JSON, missing file, load from disk, JWT expiry decode including unpadded base64url and a missing `exp`, the 60 second grace window, and every `WindowNamer` branch |
-| `UsageStoreTests.swift` | 7 | success publishes, **failure discards the previous numbers**, menu bar label follows the selection, a saved selection that no longer exists falls back to the first row, empty result stays `ok` with `--%`, the 5 minute floor, and selection persistence |
+| `UsageStoreTests.swift` | 11 | success publishes, **failure discards the previous numbers**, menu bar label follows the selection, a saved selection that no longer exists falls back to the first row, empty result stays `ok` with `--%`, the 60 second floor, both legs of the burst cadence, movement opens a burst, failure clears the movement baseline, and selection persistence |
+| `ClaudeUsageProviderTests.swift` | 19 | fixture mapping (session/weekly/model rows, RFC 3339 resets, null buckets = real empty, clamping, the `isCloudflareChallenge` helper tested on the header branch and both body markers), unrecognized payload and HTML-with-200 are fetch failures, exact cookie/UA request shape with no Authorization header, the local expiry gate proving zero network calls, a Cloudflare 403 that is distinguished from a session-lapse 403, the 500 path, transport failure, PBKDF2 recipe parity with the live probe, decrypt-shape refusals, and Chromium tick-to-date conversion |
+| `HeaderFormatterTests.swift` | 7 | the spec's literal `S2% W47%` string, bare `2%`, missing windows render `--` never `0`, and session/weekly lookup by derived name |
 
 **Three tests are load-bearing. If you break one, you have broken the product,
 not the test.**
 
 1. `test_expiredJWT_failsLocallyAndNeverCallsTheNetwork` asserts
    `spy.callCount == 0`. That is the only proof the expiry gate short-circuits
-   before the network.
+   before the network. (The Claude twin, `test_expiredSession_failsLocallyAndNeverCallsTheNetwork`,
+   proves the same gate on the cookie path.)
 2. `test_failedRefresh_discardsThePreviousLimits` asserts `limits == nil` after
    a failure. That is the never-stale rule.
 3. `test_unrecognizedPayload_throwsFetchFailedNotEmptyList` keeps "the endpoint
    changed" distinguishable from "this account has no limits". Collapse those
    two and a server-side break will read as an empty account forever.
 
-Fixtures: 11 JSON files plus one HTML interstitial, all with faked identifiers.
+Fixtures: 15 JSON files plus two HTML fixtures, all with faked identifiers.
 `Fixture.data(named:)` finds them under `swift test` via `Bundle.module`, under
 Xcode via `Bundle(for: TestBundleAnchor.self)`, and as a last resort on disk
 relative to `#filePath`. If you add a fixture, add it to all three assumptions
@@ -348,12 +391,12 @@ What was actually checked on the machine where this was written, and how:
 
 | Checked | How |
 |---|---|
-| All 11 JSON fixtures parse | `jq -e .` on each |
+| All 14 JSON fixtures parse | `jq -e .` on each |
 | Epoch-second claims in fixtures and tests | recomputed: `1785024392` is `2026-07-26T00:06:32Z`, `1785040089` is `2026-07-26T04:28:09Z`, `1785024392 - 589104` is `2026-07-19T04:28:08Z` |
 | The three base64url JWT payloads in the tests | re-encoded from the literal JSON, byte for byte |
 | Threshold color contrast | WCAG relative luminance against `#FFFFFF` and `#1C1C1E`; all six at or above 4.5:1 |
 | No placeholder or elided code | grep for `TODO`, `FIXME`, `implement here`, `rest of code`, `similar to above`, `for brevity` returns nothing |
-| Brace balance in all 14 Swift files | counted with strings and comments stripped; 0 imbalanced |
+| Brace balance in all 22 Swift files | counted with strings and comments stripped; 0 imbalanced |
 | `project.yml` is valid | parsed as YAML; three targets, one scheme |
 | No writes to the auth file | grep for `write(to:`, `removeItem`, `FileHandle` across `Sources/` returns nothing |
 | Exactly one network site | `URLSession` appears once, in `ChatGPTUsageProvider.urlSessionTransport` |
@@ -362,9 +405,9 @@ What was not checked anywhere, and needs a Mac:
 
 | Not checked | Needs |
 |---|---|
-| That the Swift compiles | `swift build` |
-| That the 37 tests pass | `swift test` |
-| That the endpoint responds for a real account | the `curl` probe |
+| That the Swift compiles | `swift build` (verified: passes) |
+| That the tests pass | `swift test` (verified: 70/70) and `xcodebuild test` |
+| That the endpoint responds for a real account | `curl` / `tools/probe-chatgpt-payload.py` for ChatGPT (200 live); `tools/probe-claude-cookies.py` and `swift run usage-probe` for Claude — `/api/organizations/{org}/usage` returns 200 live (this account, free plan, empty/null buckets), while the bare `claude.ai/` root returns 403 |
 | That the panel renders and the menu bar updates | running the app |
 | Threshold colors on a real vibrancy-backed panel | a screenshot, then measure on that surface |
 | Behavior when the token expires mid-session | corrupt `auth.json` and watch |
@@ -381,8 +424,9 @@ encoded payloads.
 
 These were applied throughout and should not drift.
 
-- **Spacing is on a 4 px grid.** The panel is 320 pt wide with 16 pt padding and
-  8 or 12 pt gaps. Every gap is a multiple of 4.
+- **Spacing is on a 4 px grid.** The stacked (narrow) panel uses 10 pt padding
+  and 6/8 pt gaps; the strip mode tightens further. Every gap is a multiple
+  of 2, most of 4.
 - **One control, one home.** The rows in the panel ARE the selection control.
   There is deliberately no separate picker that duplicates the choice. Do not
   add one.
@@ -419,6 +463,12 @@ These were applied throughout and should not drift.
 - **Single account only.** It reads whatever `~/.codex/auth.json` holds, which
   is the one active Codex sign-in. `CODEX_HOME` is honored, so a second account
   is possible by pointing that env var elsewhere, but there is no switching UI.
+- **Claude's Cloudflare gate.** `claude.ai/` itself often returns 403 with the
+  "Just a moment" managed challenge, but the authenticated
+  `/api/organizations/{org}/usage` call returns 200 from the saved Desktop
+  cookies (verified live). When it does challenge, the panel says "Claude is
+  blocked by Cloudflare" instead of "session expired" — a valid session being
+  challenged is a different fix than a stale one.
 - **No token refresh**, by design. See "Why it is built this way".
 - **Personal tool.** Unsigned by default (`CODE_SIGN_IDENTITY: "-"`), sandbox
   off, not App Store eligible.
@@ -427,16 +477,19 @@ These were applied throughout and should not drift.
 
 ## Open work, ranked
 
-1. **Compile it and make the 37 tests pass.** Nothing else matters until this
-   does. Roughly an hour, most of it fixing syntax.
-2. **Run the app and QA the panel against the conventions above.** No one has
-   ever looked at this UI. Check the three states, the row alignment, and the
-   menu bar label width with a 100% value.
-3. **Re-measure the threshold colors on the real panel** and replace the hex
+1. **QA the app on a real screen.** The shell (status item, floating panel,
+   right-click menu, header formats) compiles and the app launches, but no
+   human has judged the responsive strip at real widths yet. Check the three
+   states, both layouts, row alignment, and the `S100% W100%` label width.
+2. **Re-measure the threshold colors on the real panel** and replace the hex
    values if they fail on a vibrancy surface.
-4. **Keychain credential support.** If `cli_auth_credentials_store` is `keyring`
-   there is no file to read. Either document the workaround or read the keychain
-   item, which needs a first-use permission prompt.
+3. **Live Claude QA with real windows.** HTTP 200 verified via both the cookie
+   probe and `swift run usage-probe`, and the empty-bucket path is proven (free
+   plan shows "no usage limits available"). Confirm rows appear at non-zero usage.
+4. **Keychain credential support for Codex.** If `cli_auth_credentials_store` is
+   `keyring` there is no `auth.json` file to read. Either document the
+   workaround or read the keychain item, which needs a first-use permission
+   prompt. (Claude already reads its Keychain key.)
 5. **The always-on-top floating panel.** Deliberately out of scope for this
    version. If you add it: `.nonactivatingPanel`, `level = .floating`,
    `hidesOnDeactivate = false`, off by default, and verify it does not cover a

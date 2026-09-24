@@ -6,20 +6,45 @@ import XCTest
 /// the same tests run under `swift test` and under an Xcode test host.
 enum Fixture {
     static func data(named name: String) throws -> Data {
+        // 1. The bundle copy first. Under Xcode the fixtures are copied into
+        //    the test bundle (project.yml resources phase), and under
+        //    `swift test` they are a `.copy("Fixtures")` resource — both live
+        //    on local disk, outside the working tree. The working tree sits in
+        //    a FileProvider mount (Google Drive), and an open() there can
+        //    block indefinitely when the provider's daemon is unhappy; that
+        //    exact hang was observed as an xcodebuild test run stuck in
+        //    `Data(contentsOf:)` while the same file read fine from a shell.
+        if let bundled = bundleURL(for: name), let data = try? Data(contentsOf: bundled) {
+            return data
+        }
+
+        // 2. Filesystem fallback relative to this source file, so the suite
+        //    still runs when no bundle resource was copied.
         let fileURL = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .appending(path: "Fixtures")
             .appending(path: name)
 
-        let stem = (name as NSString).deletingPathExtension
-        let ext = (name as NSString).pathExtension
-
-        // Fixtures live in the working tree at Tests/ChatGPTUsageCoreTests/Fixtures/.
-        // Use the filesystem path directly (works under `swift test` and Xcode).
         if FileManager.default.fileExists(atPath: fileURL.path) {
             return try Data(contentsOf: fileURL)
         }
         throw FixtureError.notFound(name, fileURL.path)
+    }
+
+    /// `Bundle.module` exists only under SwiftPM (`SWIFT_PACKAGE` is defined
+    /// there); the Xcode test bundle is reached via the anchor class.
+    private static func bundleURL(for name: String) -> URL? {
+        #if SWIFT_PACKAGE
+        return Bundle.module.url(forResource: (name as NSString).deletingPathExtension,
+                                 withExtension: (name as NSString).pathExtension,
+                                 subdirectory: "Fixtures")
+        #else
+        return Bundle(for: TestBundleAnchor.self).url(
+            forResource: (name as NSString).deletingPathExtension,
+            withExtension: (name as NSString).pathExtension,
+            subdirectory: "Fixtures"
+        )
+        #endif
     }
 
     static func text(named name: String) throws -> String {
