@@ -321,7 +321,10 @@ struct LimitsPanel: View {
 
     private func thresholdColor(_ limit: UsageLimit) -> Color {
         ThresholdColors.color(
-            for: ThresholdColors.Level(usedFraction: limit.usedFraction),
+            for: ThresholdColors.Level(
+                remainingPercent: limit.remainingPercentRounded,
+                config: settings.thresholdConfig
+            ),
             scheme: colorScheme
         )
     }

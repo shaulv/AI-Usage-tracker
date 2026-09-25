@@ -40,6 +40,14 @@
 		EF99610AFEC9887F395D6F54 /* CodexCredentials.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0D22989CF32EB1563F2356 /* CodexCredentials.swift */; };
 		F93B918FEADCBBB875CF9959 /* UsageLimit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EDAF0D86E7DDDE64EEBFF56 /* UsageLimit.swift */; };
 		FB4128C7D63A13425A6FD0EB /* ChatGPTUsageCore.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 7AF66DAAA66534EEF37AB8B5 /* ChatGPTUsageCore.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		DD0ED02CCE8602D7E981D233 /* UsageStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5887BA4FF5583E4CFE0D91FB /* UsageStatus.swift */; };
+		726EE6432AF4FA851510F58F /* UsageStatusTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = B469A44133FCDCC7CA669201 /* UsageStatusTracker.swift */; };
+		8B3F8159709C03E61ACA49CD /* NotificationEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77E827606129CAF9F510D111 /* NotificationEngine.swift */; };
+		B55C6EE2682FC19EADDE5A7B /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9E9BF00AF548E0E5DE6C1C8 /* SettingsView.swift */; };
+		78CBF7E7479CC5271E14747D /* UsageStatusEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 081A80EDEE2659C829E71908 /* UsageStatusEngineTests.swift */; };
+		3A612107BBF1CECEDB95C944 /* CursorCredentialsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D1CA6E9D05D4492CEC67A16 /* CursorCredentialsTests.swift */; };
+		E353B0D85BDEDF08A74F74E0 /* CursorUsageProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0938BC61CCB777FC645D3230 /* CursorUsageProviderTests.swift */; };
+		D1E265615F49273F655EF1C8 /* UsageStatusEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7BEB648D61E8D18448785D2 /* UsageStatusEngineTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -97,7 +105,7 @@
 		B31942CED0A424CC32C282CA /* CursorUsageProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CursorUsageProvider.swift; sourceTree = "<group>"; };
 		9E240927885A9BE661F726DB /* CursorUsageResponse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CursorUsageResponse.swift; sourceTree = "<group>"; };
 		126F7F7250ACC23332971B2E /* AntigravityQuotaSummary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AntigravityQuotaSummary.swift; sourceTree = "<group>"; };
-		149F8B756379F9A9D5CF94DE /* ChatGPTUsageTracker.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ChatGPTUsageTracker.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		149F8B756379F9A9D5CF94DE /* ChatGPTUsageTracker.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "AI Usage tracker.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		317FA02300E30D763B728BEE /* UsageStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageStoreTests.swift; sourceTree = "<group>"; };
 		413F271B096EF2C8738C1C92 /* AntigravityUsageProviderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AntigravityUsageProviderTests.swift; sourceTree = "<group>"; };
 		5EDAF0D86E7DDDE64EEBFF56 /* UsageLimit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageLimit.swift; sourceTree = "<group>"; };
@@ -124,6 +132,14 @@
 		FA0D22989CF32EB1563F2356 /* CodexCredentials.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexCredentials.swift; sourceTree = "<group>"; };
 		FA19472C19D63278A459166B /* TestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestSupport.swift; sourceTree = "<group>"; };
 		FF2DA81ECE45F1478F2C1056 /* HeaderFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeaderFormatter.swift; sourceTree = "<group>"; };
+		5887BA4FF5583E4CFE0D91FB /* UsageStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageStatus.swift; sourceTree = "<group>"; };
+		B469A44133FCDCC7CA669201 /* UsageStatusTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageStatusTracker.swift; sourceTree = "<group>"; };
+		77E827606129CAF9F510D111 /* NotificationEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationEngine.swift; sourceTree = "<group>"; };
+		D9E9BF00AF548E0E5DE6C1C8 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		081A80EDEE2659C829E71908 /* UsageStatusEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageStatusEngineTests.swift; sourceTree = "<group>"; };
+		3D1CA6E9D05D4492CEC67A16 /* CursorCredentialsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CursorCredentialsTests.swift; sourceTree = "<group>"; };
+		0938BC61CCB777FC645D3230 /* CursorUsageProviderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CursorUsageProviderTests.swift; sourceTree = "<group>"; };
+		C7BEB648D61E8D18448785D2 /* UsageStatusEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageStatusEngineTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -157,6 +173,10 @@
 				A5E8964F1E74F3D964945EE9 /* HeaderFormatterTests.swift */,
 				FA19472C19D63278A459166B /* TestSupport.swift */,
 				317FA02300E30D763B728BEE /* UsageStoreTests.swift */,
+				081A80EDEE2659C829E71908 /* UsageStatusEngineTests.swift */,
+				3D1CA6E9D05D4492CEC67A16 /* CursorCredentialsTests.swift */,
+				0938BC61CCB777FC645D3230 /* CursorUsageProviderTests.swift */,
+				C7BEB648D61E8D18448785D2 /* UsageStatusEngineTests.swift */,
 			);
 			path = ChatGPTUsageCoreTests;
 			sourceTree = "<group>";
@@ -179,6 +199,8 @@
 				FF2DA81ECE45F1478F2C1056 /* HeaderFormatter.swift */,
 				5EDAF0D86E7DDDE64EEBFF56 /* UsageLimit.swift */,
 				E451DE39F7C4CCE542FF5227 /* UsageStore.swift */,
+				5887BA4FF5583E4CFE0D91FB /* UsageStatus.swift */,
+				B469A44133FCDCC7CA669201 /* UsageStatusTracker.swift */,
 			);
 			path = ChatGPTUsageCore;
 			sourceTree = "<group>";
@@ -218,6 +240,7 @@
 				A844750E9093BC3604BEC419 /* AppDelegate.swift */,
 				8003BB44FE7EF68095ADB6E4 /* AppSettings.swift */,
 				98788F41FE7F1DC7E8B065BA /* ChatGPTUsageTrackerApp.swift */,
+				77E827606129CAF9F510D111 /* NotificationEngine.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -228,6 +251,7 @@
 				0E2FB871FF02697CA5F8F0E4 /* LimitsPanel.swift */,
 				A2680959AF07A1C377E86042 /* RelativeTime.swift */,
 				D755E13F07D2F8DA06060AB1 /* ThresholdColors.swift */,
+				D9E9BF00AF548E0E5DE6C1C8 /* SettingsView.swift */,
 			);
 			path = UI;
 			sourceTree = "<group>";
@@ -347,6 +371,8 @@
 				8EFFC49DD9580F6232D4B35E /* LimitsPanel.swift in Sources */,
 				58810C23EF284F84BD472014 /* RelativeTime.swift in Sources */,
 				233B74B227D572DC1E98EFB1 /* ThresholdColors.swift in Sources */,
+				8B3F8159709C03E61ACA49CD /* NotificationEngine.swift in Sources */,
+				B55C6EE2682FC19EADDE5A7B /* SettingsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -362,6 +388,10 @@
 				67A8D76422A114828FF601DE /* HeaderFormatterTests.swift in Sources */,
 				DF41A6FADAC4BB18906B8F7B /* TestSupport.swift in Sources */,
 				44F8DAB6D203B30FECD50F8B /* UsageStoreTests.swift in Sources */,
+				78CBF7E7479CC5271E14747D /* UsageStatusEngineTests.swift in Sources */,
+				3A612107BBF1CECEDB95C944 /* CursorCredentialsTests.swift in Sources */,
+				E353B0D85BDEDF08A74F74E0 /* CursorUsageProviderTests.swift in Sources */,
+				D1E265615F49273F655EF1C8 /* UsageStatusEngineTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -384,6 +414,8 @@
 				EE0E5CBE92BB3CD3254FE045 /* HeaderFormatter.swift in Sources */,
 				F93B918FEADCBBB875CF9959 /* UsageLimit.swift in Sources */,
 				59F945A33C732E58302CFD9D /* UsageStore.swift in Sources */,
+				DD0ED02CCE8602D7E981D233 /* UsageStatus.swift in Sources */,
+				726EE6432AF4FA851510F58F /* UsageStatusTracker.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -420,13 +452,14 @@
 				FRAMEWORK_SEARCH_PATHS = "$(inherited) $(BUILT_PRODUCTS_DIR)";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_LSUIElement = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "AI Usage tracker";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				OTHER_LDFLAGS = "$(inherited) -lsqlite3";
 				PRODUCT_BUNDLE_IDENTIFIER = local.chatgptusagetracker.app;
-				PRODUCT_NAME = "ChatGPT Usage";
+				PRODUCT_NAME = "AI Usage tracker";
 				SDKROOT = macosx;
 			};
 			name = Release;
@@ -469,13 +502,14 @@
 				FRAMEWORK_SEARCH_PATHS = "$(inherited) $(BUILT_PRODUCTS_DIR)";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_LSUIElement = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "AI Usage tracker";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				OTHER_LDFLAGS = "$(inherited) -lsqlite3";
 				PRODUCT_BUNDLE_IDENTIFIER = local.chatgptusagetracker.app;
-				PRODUCT_NAME = "ChatGPT Usage";
+				PRODUCT_NAME = "AI Usage tracker";
 				SDKROOT = macosx;
 			};
 			name = Debug;
@@ -494,7 +528,7 @@
 				OTHER_LDFLAGS = "$(inherited) -lsqlite3";
 				PRODUCT_BUNDLE_IDENTIFIER = local.chatgptusagetracker.tests;
 				SDKROOT = macosx;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ChatGPT Usage.app/Contents/MacOS/ChatGPT Usage";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/AI Usage tracker.app/Contents/MacOS/AI Usage tracker";
 			};
 			name = Release;
 		};
@@ -578,7 +612,7 @@
 				OTHER_LDFLAGS = "$(inherited) -lsqlite3";
 				PRODUCT_BUNDLE_IDENTIFIER = local.chatgptusagetracker.tests;
 				SDKROOT = macosx;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ChatGPT Usage.app/Contents/MacOS/ChatGPT Usage";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/AI Usage tracker.app/Contents/MacOS/AI Usage tracker";
 			};
 			name = Debug;
 		};

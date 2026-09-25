@@ -1,4 +1,5 @@
 import SwiftUI
+import ChatGPTUsageCore
 
 /// Per-appearance threshold colors.
 ///
@@ -21,14 +22,17 @@ enum ThresholdColors {
     enum Level {
         case ok, warn, critical
 
-        init(usedFraction: Double) {
-            if usedFraction >= 0.90 {
-                self = .critical
-            } else if usedFraction >= 0.70 {
-                self = .warn
-            } else {
-                self = .ok
+        init(remainingPercent: Int, config: ThresholdConfiguration) {
+            switch UsageStatusEvaluator.evaluate(remainingPercent: remainingPercent, config: config) {
+            case .ok: self = .ok
+            case .warning: self = .warn
+            case .critical: self = .critical
             }
+        }
+
+        init(usedFraction: Double) {
+            let remaining = Int(((1.0 - min(max(usedFraction, 0), 1.0)) * 100).rounded())
+            self.init(remainingPercent: remaining, config: ThresholdConfiguration())
         }
     }
 
@@ -57,3 +61,4 @@ enum ThresholdColors {
         )
     }
 }
+

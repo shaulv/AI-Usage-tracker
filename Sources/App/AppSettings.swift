@@ -39,6 +39,49 @@ final class AppSettings: ObservableObject {
         didSet { defaults.set(showRemaining, forKey: "showRemaining") }
     }
 
+    // MARK: - Thresholds & Notifications
+
+    /// Warning threshold (orange status): triggers when quota remaining % is at or below this value.
+    @Published var warningRemainingThreshold: Int {
+        didSet {
+            let clamped = max(criticalRemainingThreshold + 1, min(warningRemainingThreshold, 99))
+            if clamped != warningRemainingThreshold { warningRemainingThreshold = clamped }
+            defaults.set(warningRemainingThreshold, forKey: "warningRemainingThreshold")
+        }
+    }
+    /// Critical threshold (red alert): triggers when quota remaining % is at or below this value.
+    @Published var criticalRemainingThreshold: Int {
+        didSet {
+            let clamped = max(1, min(criticalRemainingThreshold, warningRemainingThreshold - 1))
+            if clamped != criticalRemainingThreshold { criticalRemainingThreshold = clamped }
+            defaults.set(criticalRemainingThreshold, forKey: "criticalRemainingThreshold")
+        }
+    }
+    /// Global toggle for native macOS notifications.
+    @Published var notificationsEnabled: Bool {
+        didSet { defaults.set(notificationsEnabled, forKey: "notificationsEnabled") }
+    }
+    /// Whether to send an alert when entering Warning status (orange).
+    @Published var notifyOnWarning: Bool {
+        didSet { defaults.set(notifyOnWarning, forKey: "notifyOnWarning") }
+    }
+    /// Whether to send an alert when entering Critical status (red alert).
+    @Published var notifyOnCritical: Bool {
+        didSet { defaults.set(notifyOnCritical, forKey: "notifyOnCritical") }
+    }
+    /// Whether notifications play the default alert sound.
+    @Published var notificationSound: Bool {
+        didSet { defaults.set(notificationSound, forKey: "notificationSound") }
+    }
+
+    /// Computed threshold configuration reflecting current settings.
+    var thresholdConfig: ThresholdConfiguration {
+        ThresholdConfiguration(
+            warningRemainingPercent: warningRemainingThreshold,
+            criticalRemainingPercent: criticalRemainingThreshold
+        )
+    }
+
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         self.panelEnabled = defaults.object(forKey: "panelEnabled") as? Bool ?? true
@@ -49,5 +92,20 @@ final class AppSettings: ObservableObject {
         let rawStyle = defaults.string(forKey: "headerStyle") ?? ""
         self.headerStyle = HeaderStyle(rawValue: rawStyle) ?? .sessionWeekly
         self.showRemaining = defaults.object(forKey: "showRemaining") as? Bool ?? true
+
+        let savedWarn = defaults.object(forKey: "warningRemainingThreshold") as? Int
+            ?? ThresholdConfiguration.defaultWarningRemainingPercent
+        let savedCrit = defaults.object(forKey: "criticalRemainingThreshold") as? Int
+            ?? ThresholdConfiguration.defaultCriticalRemainingPercent
+        let validCrit = max(1, min(savedCrit, 98))
+        let validWarn = max(validCrit + 1, min(savedWarn, 99))
+        self.criticalRemainingThreshold = validCrit
+        self.warningRemainingThreshold = validWarn
+
+        self.notificationsEnabled = defaults.object(forKey: "notificationsEnabled") as? Bool ?? true
+        self.notifyOnWarning = defaults.object(forKey: "notifyOnWarning") as? Bool ?? true
+        self.notifyOnCritical = defaults.object(forKey: "notifyOnCritical") as? Bool ?? true
+        self.notificationSound = defaults.object(forKey: "notificationSound") as? Bool ?? true
     }
 }
+

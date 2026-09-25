@@ -39,8 +39,9 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: local.chatgptusagetracker.app
-        PRODUCT_NAME: "ChatGPT Usage"
+        PRODUCT_NAME: "AI Usage tracker"
         INFOPLIST_KEY_LSUIElement: true
+        INFOPLIST_KEY_CFBundleDisplayName: "AI Usage tracker"
         GENERATE_INFOPLIST_FILE: true
         ENABLE_APP_SANDBOX: false
         CODE_SIGN_STYLE: Automatic
@@ -70,7 +71,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: local.chatgptusagetracker.tests
         GENERATE_INFOPLIST_FILE: true
-        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/ChatGPT Usage.app/Contents/MacOS/ChatGPT Usage"
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/AI Usage tracker.app/Contents/MacOS/AI Usage tracker"
         BUNDLE_LOADER: "$(TEST_HOST)"
         OTHER_LDFLAGS: "$(inherited) -lsqlite3"
 

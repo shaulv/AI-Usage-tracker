@@ -2,6 +2,8 @@ import AppKit
 import Combine
 import SwiftUI
 import ServiceManagement
+import UserNotifications
+
 import ChatGPTUsageCore
 
 /// Owns everything the SwiftUI scene no longer owns after the shell swap:
@@ -13,7 +15,7 @@ import ChatGPTUsageCore
 /// requires. NSStatusItem + NSPanel can do all three, and NSStatusItem also
 /// survives the macOS 26 toggle that silently kills MenuBarExtra apps.
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNotificationCenterDelegate {
     private var statusItem: NSStatusItem!
     private var panel: NSPanel?
     private let settings = AppSettings()
@@ -35,6 +37,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         provider: CursorUsageProvider(),
         selectionKey: "selectedLimitName.cursor"
     )
+    @MainActor private lazy var notificationEngine = UsageNotificationEngine(settings: settings)
+    private var settingsWindow: NSWindow?
+
     private var cancellables = Set<AnyCancellable>()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -49,6 +54,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         buildStatusItem()
         wireObservation()
         wireProviderToggles()
+
+        // Notifications: register delegate and prompt for authorization on first launch
+        UNUserNotificationCenter.current().delegate = self
+        Task {
+            _ = try? await UNUserNotificationCenter.current()
+                .requestAuthorization(options: [.alert, .sound, .badge])
+        }
+
 
         // The panel reopens in the state the user left it in.
         if settings.panelEnabled {
@@ -137,6 +150,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             // The classic NSStatusItem right-click trick: attach the menu for
             // one click, perform it, detach, so left-click stays ours.
             statusItem.menu = buildMenu()
+
+        // Observe store limits for notification engine alert transitions
+        chatGPTStore.$limits
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] limits in
+                guard let self, let limits else { return }
+                self.notificationEngine.process(providerId: "chatgpt", providerDisplayName: "ChatGPT", limits: limits)
+            }
+            .store(in: &cancellables)
+
+        claudeStore.$limits
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] limits in
+                guard let self, let limits else { return }
+                self.notificationEngine.process(providerId: "claude", providerDisplayName: "Claude", limits: limits)
+            }
+            .store(in: &cancellables)
+
+        antigravityStore.$limits
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] limits in
+                guard let self, let limits else { return }
+                self.notificationEngine.process(providerId: "antigravity", providerDisplayName: "Gemini", limits: limits)
+            }
+            .store(in: &cancellables)
+
+        cursorStore.$limits
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] limits in
+                guard let self, let limits else { return }
+                self.notificationEngine.process(providerId: "cursor", providerDisplayName: "Cursor", limits: limits)
+            }
+            .store(in: &cancellables)
+
             statusItem.button?.performClick(nil)
             statusItem.menu = nil
         } else {
@@ -275,6 +322,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         )
         loginItem.target = self
         loginItem.state = SMAppService.mainApp.status == .enabled ? .on : .off
+        let settingsItem = NSMenuItem(
+            title: "Settings…",
+            action: #selector(menuOpenSettings),
+            keyEquivalent: ","
+        )
+        settingsItem.target = self
+        menu.addItem(settingsItem)
+
+
         menu.addItem(loginItem)
 
         menu.addItem(.separator())
@@ -320,7 +376,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         showItem.state = settings.showRemaining ? .on : .off
         menu.addItem(showItem)
 
-        let quitItem = NSMenuItem(title: "Quit", action: #selector(menuQuit), keyEquivalent: "q")
+        let quitItem = NSMenuItem(title: "Quit AI Usage tracker", action: #selector(menuQuit), keyEquivalent: "q")
         quitItem.target = self
         menu.addItem(quitItem)
 
@@ -431,7 +487,55 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             cursorStore.stop()
             return
         }
+
         cursorStore.start()
         Task { await cursorStore.refresh() }
     }
+
+    // MARK: - Settings Window
+
+    @objc private func menuOpenSettings() {
+        if let settingsWindow {
+            settingsWindow.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
+        let view = SettingsView(settings: settings, notificationEngine: notificationEngine)
+        let hosting = NSHostingController(rootView: view)
+        let window = NSWindow(contentViewController: hosting)
+        window.title = "AI Usage Tracker Settings"
+        window.styleMask = [.titled, .closable]
+        window.isReleasedWhenClosed = false
+        window.center()
+
+        self.settingsWindow = window
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    // MARK: - UNUserNotificationCenterDelegate
+
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        Task { @MainActor in
+            self.showPanel()
+            NSApp.activate(ignoringOtherApps: true)
+            completionHandler()
+        }
+    }
+
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        // Show banner and play sound even when app is in foreground
+        completionHandler([.banner, .sound, .badge])
+    }
+
+
 }

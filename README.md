@@ -1,8 +1,10 @@
-# ChatGPT Usage Tracker
+# AI Usage Tracker
 
 A menu-bar-only macOS app that shows how much of your AI plan usage you have
 consumed: ChatGPT windows, Claude windows, Gemini pools, and Cursor monthly
-pools, each read from that provider's own usage endpoint.
+pools, each read from that provider's own usage endpoint. It also watches the
+percentage LEFT and posts native macOS notifications when a quota drops into a
+warning or critical band.
 
 ---
 
@@ -16,7 +18,7 @@ Your first job, in order:
 
 1. `swift build` and fix whatever the compiler finds. Expect small syntax
    errors, not design problems.
-2. `swift test`. 116 tests pass. They cover the core framework only.
+2. `swift test`. 129 tests pass. They cover the core framework only.
 3. Run the `curl` probe below against the real account. Until that returns
    `HTTP 200` with a `used_percent`, nothing else is worth doing.
 4. `xcodegen generate`, open the project, run the app, and look at the panel.
@@ -45,7 +47,8 @@ Click the status item for a floating, draggable, resizable panel with every
 limit on all four accounts; stretch it edge-to-edge for a one-line strip that stays
 on top in any space. Right-click the status item for settings: show/hide panel,
 start at login, ChatGPT on/off, Claude on/off, Gemini on/off, Cursor on/off,
-header format, quit.
+header format, `Settings...`, quit. The `Settings...` window holds the alert
+thresholds, the notification toggles, and a test-notification button.
 
 Cursor reports what is LEFT this month: `Cursor Auto` (Cursor Models pool) and
 `Cursor API` (Other Models pool, third-party models). Both rows always render;
@@ -58,6 +61,47 @@ credential sources and four read-only local endpoints (ChatGPT's usage endpoint,
 claude.ai's web usage endpoint, the Antigravity language server's loopback
 quota endpoint, and Cursor's dashboard usage endpoint). Reads nothing back to
 any credential source, sends nothing, tracks nothing.
+
+---
+
+## Status engine and native notifications
+
+The app judges each quota window by the percentage LEFT, not the percentage
+used. Three statuses, driven by two user-set thresholds:
+
+| Status | Colour | Rule |
+|---|---|---|
+| OK | green | remaining% > warning threshold |
+| Warning | orange | remaining% <= warning threshold |
+| Critical | red | remaining% <= critical threshold |
+
+Defaults are 20% left for Warning and 10% left for Critical. Change them in
+Settings (right-click the menu-bar icon, then `Settings...`). The invariant is
+enforced in code: `0 < critical < warning < 100`.
+
+**Status drives everything downstream:**
+
+1. The colour of every dot and chip in the floating panel is recomputed from
+the current thresholds, so moving a slider repaints the panel immediately.
+2. A transition to Warning or Critical posts a native macOS notification
+through `UNUserNotificationCenter`.
+
+Notifications are **edge-triggered**, never level-triggered. A limit that sits
+at 15% left for an hour sends exactly one alert, at the moment it crossed, not
+sixty. When a quota window resets (remaining climbs back above the warning
+threshold), the tracked level returns to OK silently and re-arms the trigger
+for the next burn-down. The transition logic lives in
+`UsageStatusTracker`, a pure state machine in the core framework, so it is
+covered by offline unit tests with no mocked system services.
+
+Alert copy:
+
+* Warning: title `AI Usage Warning: <provider>`, subtitle `<limit> - <n>% left`.
+* Critical: title `AI Usage Critical Alert: <provider>`, subtitle `<limit> - <n>% left`.
+
+Clicking a notification activates the app and brings the floating panel
+forward. macOS notification permission is requested on first launch, and the
+Settings window has a `Send Test Notification` button to verify it.
 
 ---
 
@@ -212,7 +256,7 @@ The app:
 brew install xcodegen
 xcodegen generate
 open ChatGPTUsageTracker.xcodeproj
-# Product > Run
+# Product > Run   (the product is AI Usage tracker.app)
 ```
 
 There is no Dock icon. The app lives in the menu bar only, which is
@@ -269,14 +313,26 @@ Sources/ChatGPTUsageCore/
   AntigravityUsageProvider.swift     loopback POST + the four Antigravity
                                       failure paths
   HeaderFormatter.swift              HeaderStyle, title formatting, window lookup
+  UsageStatus.swift                  UsageStatusLevel, ThresholdConfiguration
+                                     (0 < critical < warning < 100) and the
+                                     pure evaluator
+  UsageStatusTracker.swift           edge-triggered transition state machine:
+                                     alerts on escalation, resets silently
 
 Sources/App/ChatGPTUsageTrackerApp.swift   @main entry, delegates to AppDelegate
 Sources/App/AppDelegate.swift              NSStatusItem, NSPanel host, right-click
                                            menu, all four UsageStore instances
-Sources/App/AppSettings.swift              persisted toggles + header style
+Sources/App/AppSettings.swift              persisted toggles + header style,
+                                           thresholds and notification prefs
+Sources/App/NotificationEngine.swift       NotificationClient protocol,
+                                           LiveNotificationClient over
+                                           UNUserNotificationCenter, and the
+                                           notification dispatch engine
 Sources/UI/LimitsPanel.swift               the responsive panel: wide shows a single condensed row (chips left, refresh right); narrow stacks one limit per line. No title, no quit button
 Sources/UI/ThresholdColors.swift           per-appearance threshold colors
 Sources/UI/RelativeTime.swift              "in 2h 14m"
+Sources/UI/SettingsView.swift              threshold sliders, live status badges,
+                                           notification toggles, test button
   Sources/UsageProbe/main.swift              live-state probe binary (read-only, hits network)
 
 Tests/ChatGPTUsageCoreTests/
@@ -291,6 +347,7 @@ Tests/ChatGPTUsageCoreTests/
     HeaderFormatterTests.swift         14 tests
     CursorUsageProviderTests.swift     14 tests
     CursorCredentialsTests.swift        6 tests
+    UsageStatusEngineTests.swift       13 tests
     Fixtures/                          21 JSON payloads plus two HTML fixtures
 ```
 
@@ -474,7 +531,7 @@ The menu bar shows `--%` whenever there is nothing honest to display.
 
 ## Tests
 
-116 tests, all in the core framework, none of them touching the network or the
+129 tests, all in the core framework, none of them touching the network or the
 real home directory. Transport and credentials source are both injected.
 
 | File | Count | Covers |
@@ -488,6 +545,7 @@ real home directory. Transport and credentials source are both injected.
 | `AntigravitySessionTests.swift` | 6 | language-server discovery, CSRF token load, missing server, malformed session, unknown expiry, expired session |
 | `CursorUsageProviderTests.swift` | 14 | basic payload mapping to two monthly rows with a shared millis-string reset, exact Connect RPC request shape, Start-plan payload without the API pool still rendering both rows, clamping 140.7 to 100 and -8 to 0, unrecognized payload and HTML-with-200 as fetch failures, missing and expired credentials with zero network calls, 401/403/500 paths, transport failure, and reset-date edge cases |
 | `CursorCredentialsTests.swift` | 6 | missing database file, missing token key, valid token decoding email and tier, expired token, undecodable token as unknown expiry, malformed database file |
+| `UsageStatusEngineTests.swift` | 13 | remaining-percent evaluation at, above and below both thresholds, the `0 < critical < warning < 100` clamp, and every `UsageStatusTracker` branch: first crossing into warning, no duplicate while the level holds, escalation warning to critical, a direct ok to critical plunge, and a silent reset back to OK that re-arms the next crossing |
 
 **Three tests are load-bearing. If you break one, you have broken the product,
 not the test.**
@@ -531,12 +589,12 @@ What was actually checked on the machine where this was written, and how:
 
 | Checked | How |
 |---|---|
-| All 14 JSON fixtures parse | `jq -e .` on each |
+| All 21 JSON fixtures parse | `jq -e .` on each |
 | Epoch-second claims in fixtures and tests | recomputed: `1785024392` is `2026-07-26T00:06:32Z`, `1785040089` is `2026-07-26T04:28:09Z`, `1785024392 - 589104` is `2026-07-19T04:28:08Z` |
 | The three base64url JWT payloads in the tests | re-encoded from the literal JSON, byte for byte |
 | Threshold color contrast | WCAG relative luminance against `#FFFFFF` and `#1C1C1E`; all six at or above 4.5:1 |
 | No placeholder or elided code | grep for `TODO`, `FIXME`, `implement here`, `rest of code`, `similar to above`, `for brevity` returns nothing |
-| Brace balance in all 22 Swift files | counted with strings and comments stripped; 0 imbalanced |
+| Brace balance in all 38 Swift files | counted with strings and comments stripped; 0 imbalanced |
 | `project.yml` is valid | parsed as YAML; three targets, one scheme |
 | No writes to the auth file | grep for `write(to:`, `removeItem`, `FileHandle` across `Sources/` returns nothing |
 | Exactly one network site | `URLSession` appears once, in `ChatGPTUsageProvider.urlSessionTransport` |
@@ -546,7 +604,7 @@ What was not checked anywhere, and needs a Mac:
 | Not checked | Needs |
 |---|---|
 | That the Swift compiles | `swift build` (verified: passes) |
-| That the tests pass | `swift test` (verified: 116/116) and `xcodebuild test` |
+| That the tests pass | `swift test` (verified: 129/129) and `xcodebuild test` |
 | That the endpoint responds for a real account | `curl` / `tools/probe-chatgpt-payload.py` for ChatGPT (200 live); `tools/probe-claude-cookies.py` and `swift run usage-probe` for Claude — `/api/organizations/{org}/usage` returns 200 live (this account, free plan, empty/null buckets), while the bare `claude.ai/` root returns 403 |
 | That the panel renders and the menu bar updates | running the app |
 | Threshold colors on a real vibrancy-backed panel | a screenshot, then measure on that surface |
@@ -680,5 +738,11 @@ app does, signed and notarized, installable with
 see the number, install that instead. This codebase exists for the cases where
 you want to own it: a different UI, a second provider, or learning how the
 endpoint works.
+
+Notifications were added after the four providers shipped: a status engine in
+the core framework judges each window by percentage LEFT against two
+user-set thresholds, and an app-layer engine turns escalations into native
+macOS banners. Notifications are edge-triggered on purpose, so a limit that
+sits in the warning band for an hour alerts once, not once a minute.
 
 Full reasoning, sources, and the acceptance contract are in `PLAN-v2.md`.
