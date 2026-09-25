@@ -76,3 +76,47 @@ final class HeaderFormatterTests: XCTestCase {
         XCTAssertEqual(UsageWindowLookup.geminiWeeklyPercent(in: []), nil)
     }
 }
+
+extension HeaderFormatterTests {
+    func test_cursorMonthly_rendersCAndAPrefixes() {
+        XCTAssertEqual(
+            HeaderFormatter.title(style: .cursorMonthly, sessionPercent: 70, weeklyPercent: 54),
+            "C70% A54%"
+        )
+        XCTAssertEqual(HeaderFormatter.cursorTitle(autoLeft: 70, apiLeft: 54), "C70% A54%")
+    }
+
+    func test_cursorMonthly_missingSideRendersDashes() {
+        XCTAssertEqual(
+            HeaderFormatter.title(style: .cursorMonthly, sessionPercent: nil, weeklyPercent: nil),
+            "C--% A--%"
+        )
+        XCTAssertEqual(HeaderFormatter.cursorTitle(autoLeft: 70, apiLeft: nil), "C70% A--%")
+    }
+
+    func test_cursorLookup_findsMonthlyRows() {
+        let limits = [
+            UsageLimit(name: "Cursor Auto", usedFraction: 0.30, resetsAt: nil),
+            UsageLimit(name: "Cursor API", usedFraction: 0.46, resetsAt: nil),
+        ]
+        XCTAssertEqual(UsageWindowLookup.cursorAutoPercent(in: limits), 30)
+        XCTAssertEqual(UsageWindowLookup.cursorApiPercent(in: limits), 46)
+        XCTAssertEqual(UsageWindowLookup.cursorAutoRemainingPercent(in: limits), 70)
+        XCTAssertEqual(UsageWindowLookup.cursorApiRemainingPercent(in: limits), 54)
+    }
+
+    func test_cursorLookup_notIncludedSideResolvesNil() {
+        let limits = [
+            UsageLimit(name: "Cursor Auto", usedFraction: 0.125, resetsAt: nil),
+            UsageLimit(name: "Cursor API (not included)", usedFraction: 0.0, resetsAt: nil),
+        ]
+        XCTAssertEqual(UsageWindowLookup.cursorAutoPercent(in: limits), 13)
+        XCTAssertNil(UsageWindowLookup.cursorApiPercent(in: limits))
+        XCTAssertNil(UsageWindowLookup.cursorApiRemainingPercent(in: limits))
+    }
+
+    func test_cursorLookup_absentRowsResolveNil() {
+        XCTAssertNil(UsageWindowLookup.cursorAutoPercent(in: []))
+        XCTAssertNil(UsageWindowLookup.cursorApiPercent(in: []))
+    }
+}

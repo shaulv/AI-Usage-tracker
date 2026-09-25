@@ -1,0 +1,4 @@
+{
+  "someFutureShape": true,
+  "nested": {"whatever": [1, 2, 3]}
+}

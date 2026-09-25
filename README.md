@@ -1,7 +1,8 @@
 # ChatGPT Usage Tracker
 
-A menu-bar-only macOS app that shows how much of your ChatGPT plan's metered
-usage you have consumed, read from ChatGPT's own usage endpoint.
+A menu-bar-only macOS app that shows how much of your AI plan usage you have
+consumed: ChatGPT windows, Claude windows, Gemini pools, and Cursor monthly
+pools, each read from that provider's own usage endpoint.
 
 ---
 
@@ -15,7 +16,7 @@ Your first job, in order:
 
 1. `swift build` and fix whatever the compiler finds. Expect small syntax
    errors, not design problems.
-2. `swift test`. 91 tests pass. They cover the core framework only.
+2. `swift test`. 116 tests pass. They cover the core framework only.
 3. Run the `curl` probe below against the real account. Until that returns
    `HTTP 200` with a `used_percent`, nothing else is worth doing.
 4. `xcodegen generate`, open the project, run the app, and look at the panel.
@@ -37,19 +38,26 @@ any change to `Sources/` or `Tests/`, and update this file when it complains.
 
 ## What it does
 
-Shows usage percentages in the menu bar — the session window alone (`6%`) or
-session + weekly together (`S6% W47%`), pickable from the right-click menu.
+Shows usage percentages in the menu bar — the session window alone (`6%`),
+session + weekly together (`S6% W47%`), or the Cursor monthly pair (`C70% A54%`),
+pickable from the right-click menu.
 Click the status item for a floating, draggable, resizable panel with every
-limit on all three accounts; stretch it edge-to-edge for a one-line strip that stays
+limit on all four accounts; stretch it edge-to-edge for a one-line strip that stays
 on top in any space. Right-click the status item for settings: show/hide panel,
-start at login, ChatGPT on/off, Claude on/off, Gemini on/off, header format, quit.
+start at login, ChatGPT on/off, Claude on/off, Gemini on/off, Cursor on/off,
+header format, quit.
+
+Cursor reports what is LEFT this month: `Cursor Auto` (Cursor Models pool) and
+`Cursor API` (Other Models pool, third-party models). Both rows always render;
+a pool the plan does not include shows `(not included)` instead of vanishing.
+The menu bar pair `C..% A..%` shows the same left values (`--` on a missing side).
 
 Polls adaptively: every 60 seconds while the numbers sit still, and every 10
-seconds for a minute once any percentage starts moving. Reads three local
-credential sources and three read-only local endpoints (ChatGPT's usage endpoint,
-claude.ai's web usage endpoint, and the Antigravity language server's loopback
-quota endpoint). Reads nothing back to any credential source, sends
-nothing, tracks nothing.
+seconds for a minute once any percentage starts moving. Reads four local
+credential sources and four read-only local endpoints (ChatGPT's usage endpoint,
+claude.ai's web usage endpoint, the Antigravity language server's loopback
+quota endpoint, and Cursor's dashboard usage endpoint). Reads nothing back to
+any credential source, sends nothing, tracks nothing.
 
 ---
 
@@ -88,6 +96,40 @@ anything. The response's `groups[].buckets[]` merge into four fixed rows:
 (worst remaining fraction wins each pool). If the server is not running the
 panel says "Antigravity IDE is not running - open it to read Gemini usage"; a
 `401`/`403` from the server says "Antigravity rejected the local session - restart Antigravity IDE" (the OAuth refresh needs a client secret the app must never hold, so a 401 is not retried), and any other server failure says "Could not reach the Antigravity language server".
+
+Cursor rides the same shape with its own sources: the IDE's own credential
+store (`~/Library/Application Support/Cursor/User/globalStorage/state.vscdb`,
+`ItemTable` keys `cursorAuth/accessToken`, `cursorAuth/cachedEmail`,
+`cursorAuth/stripeMembershipType`) instead of `auth.json`, and
+`POST https://api2.cursor.sh/aiserver.v1.DashboardService/GetCurrentPeriodUsage`
+(Connect RPC v1: `Authorization: Bearer <token>`, `Content-Type: application/json`,
+`Connect-Protocol-Version: 1`, empty `{}` body) instead of the wham endpoint.
+The app copies the database to a `/tmp` snapshot before querying it (Cursor holds
+a WAL lock while running), deletes only that snapshot copy afterwards, and never
+writes to the live store. `CursorUsageProvider` mirrors `ChatGPTUsageProvider`
+line for line: same `UsageProvider` protocol, same injected transport, same
+never-stale rule, read-only, never refreshing anything. The response's
+`planUsage` maps to two fixed monthly rows, `Cursor Auto` (`autoPercentUsed`)
+and `Cursor API` (`apiPercentUsed`), both sharing one reset date from
+`billingCycleEnd` (unix milliseconds as a string). A missing pool still renders
+at zero with a `(not included)` suffix, so the panel never shows a half. A 401
+or 403 says "Cursor rejected the saved credentials - sign in to Cursor again";
+a missing store, missing key, or unreadable copy says "Cursor is not signed in -
+open Cursor IDE and sign in"; an expired JWT says "Cursor session expired - open
+Cursor to refresh it"; any other server failure says "Cursor usage service
+returned HTTP <code>"; an unknown payload says "Unexpected response from Cursor
+usage service". On-demand dollars (`spendLimitUsage`) are decoded and ignored
+for v1.
+
+Every Cursor message the panel can show (one per line, so the docs gate matches them exactly):
+
+| Message |
+|---|
+| Cursor is not signed in - open Cursor IDE and sign in |
+| Cursor session expired - open Cursor to refresh it |
+| Cursor rejected the saved credentials - sign in to Cursor again |
+| Cursor usage service returned HTTP <...> |
+| Unexpected response from Cursor usage service |
 
 If any step fails, the previously shown numbers are discarded and replaced with
 `--%` plus a reason. The app never keeps displaying a stale percentage.
@@ -141,6 +183,19 @@ Read the result:
 Never paste the access token into chat, an issue, or a commit. The probe prints
 only status codes and percentages.
 
+Cursor probe (needs Cursor IDE signed in on this Mac):
+
+```bash
+cp ~/Library/Application\ Support/Cursor/User/globalStorage/state.vscdb /tmp/cursor-state.db
+TOKEN=$(sqlite3 /tmp/cursor-state.db "SELECT value FROM ItemTable WHERE key='cursorAuth/accessToken'")
+rm /tmp/cursor-state.db
+curl -sS -X POST https://api2.cursor.sh/aiserver.v1.DashboardService/GetCurrentPeriodUsage   -H "Authorization: Bearer $TOKEN"   -H 'Content-Type: application/json'   -H 'Connect-Protocol-Version: 1'   -d '{}' | python3 -m json.tool | head -n 40
+unset TOKEN
+```
+
+Expect `autoPercentUsed`, `apiPercentUsed`, and `billingCycleEnd` in the output.
+or `swift run usage-probe cursor` prints exactly what the panel would render.
+
 ---
 
 ## Build and run
@@ -193,6 +248,12 @@ Sources/ChatGPTUsageCore/
                                      parseCredentials, JWT exp decode
   ChatGPTUsageResponse.swift         Decodable DTOs and toUsageLimits(now:)
   ChatGPTUsageProvider.swift         the one GET and every failure path
+  CursorUsageResponse.swift          Decodable DTOs for GetCurrentPeriodUsage
+                                     and toUsageLimits(now:) mapping Auto + API
+  CursorUsageProvider.swift          the Cursor POST and every failure path
+  CursorCredentials.swift            CursorCredentialsSource protocol,
+                                     CursorDesktopCredentialsSource (/tmp snapshot
+                                     + sqlite3, JWT exp decode)
   UsageStore.swift                   selection, adaptive timer (60s/10s burst),
                                      the never-stale rule
   ClaudeCredentials.swift            ClaudeSessionSource protocol,
@@ -211,7 +272,7 @@ Sources/ChatGPTUsageCore/
 
 Sources/App/ChatGPTUsageTrackerApp.swift   @main entry, delegates to AppDelegate
 Sources/App/AppDelegate.swift              NSStatusItem, NSPanel host, right-click
-                                           menu, all three UsageStore instances
+                                           menu, all four UsageStore instances
 Sources/App/AppSettings.swift              persisted toggles + header style
 Sources/UI/LimitsPanel.swift               the responsive panel: wide shows a single condensed row (chips left, refresh right); narrow stacks one limit per line. No title, no quit button
 Sources/UI/ThresholdColors.swift           per-appearance threshold colors
@@ -227,8 +288,10 @@ Tests/ChatGPTUsageCoreTests/
     ClaudeUsageProviderTests.swift     19 tests
     AntigravityUsageProviderTests.swift 13 tests
     AntigravitySessionTests.swift       6 tests
-    HeaderFormatterTests.swift          9 tests
-    Fixtures/                          17 JSON payloads plus two HTML fixtures
+    HeaderFormatterTests.swift         14 tests
+    CursorUsageProviderTests.swift     14 tests
+    CursorCredentialsTests.swift        6 tests
+    Fixtures/                          21 JSON payloads plus two HTML fixtures
 ```
 
 ---
@@ -284,6 +347,44 @@ Four facts that are easy to get wrong, each one independently recomputed:
 Error responses actually observed: `401` with
 `{"detail":"Unauthorized"}` when the auth header is missing, and `401` with an
 `invalid_request_error` body when the token is wrong. Neither body is parsed.
+
+### Cursor endpoint contract
+
+```
+POST https://api2.cursor.sh/aiserver.v1.DashboardService/GetCurrentPeriodUsage
+Authorization: Bearer <cursorAuth/accessToken>   required
+Content-Type: application/json                   required
+Connect-Protocol-Version: 1                      required
+Accept: application/json
+body: {}                                         required
+timeout 15 s
+```
+
+Response, trimmed to what the code reads:
+
+```json
+{
+  "billingCycleStart": "1789995043000",
+  "billingCycleEnd": "1792587043000",
+  "planUsage": {
+    "autoPercentUsed": 30,
+    "apiPercentUsed": 46.444,
+    "totalPercentUsed": 15.48,
+    "limit": 40000,
+    "remaining": 16778
+  }
+}
+```
+
+Three facts that are easy to get wrong:
+
+1. **Cycle dates are millis-as-strings.** `"1771077734000"` is
+   `2026-10-21T12:50:43Z`. Divide by 1000 for epoch seconds.
+2. **No durations, no window naming.** `autoPercentUsed` is always the
+   `Cursor Auto` row and `apiPercentUsed` is always the `Cursor API` row.
+   `WindowNamer` is never consulted on this path.
+3. **A missing pool is a real answer.** The Start plan omits the API pool;
+   that row renders `(not included)` at zero rather than erroring.
 
 ---
 
@@ -373,7 +474,7 @@ The menu bar shows `--%` whenever there is nothing honest to display.
 
 ## Tests
 
-88 tests, all in the core framework, none of them touching the network or the
+116 tests, all in the core framework, none of them touching the network or the
 real home directory. Transport and credentials source are both injected.
 
 | File | Count | Covers |
@@ -382,9 +483,11 @@ real home directory. Transport and credentials source are both injected.
 | `CodexCredentialsTests.swift` | 14 | real-shaped `auth.json`, API-key sign-in, missing tokens, malformed JSON, missing file, load from disk, JWT expiry decode including unpadded base64url and a missing `exp`, the 60 second grace window, and every `WindowNamer` branch |
 | `UsageStoreTests.swift` | 11 | success publishes, **failure discards the previous numbers**, menu bar label follows the selection, a saved selection that no longer exists falls back to the first row, empty result stays `ok` with `--%`, the 60 second floor, both legs of the burst cadence, movement opens a burst, failure clears the movement baseline, and selection persistence |
 | `ClaudeUsageProviderTests.swift` | 19 | fixture mapping (session/weekly/model rows, RFC 3339 resets, null buckets = real empty, clamping, the `isCloudflareChallenge` helper tested on the header branch and both body markers), unrecognized payload and HTML-with-200 are fetch failures, exact cookie/UA request shape with no Authorization header, the local expiry gate proving zero network calls, a Cloudflare 403 that is distinguished from a session-lapse 403, the 500 path, transport failure, PBKDF2 recipe parity with the live probe, decrypt-shape refusals, and Chromium tick-to-date conversion |
-| `HeaderFormatterTests.swift` | 9 | header strings, missing windows, derived-name lookup, and Gemini prefixed lookup that never steals the ChatGPT rows |
-| `AntigravityUsageProviderTests.swift` | 10 | four fixed rows, worst-fraction pool merge, verbatim unknown models, expiry gate with zero network calls, 401/500 paths, exact Bearer POST shape |
-| `AntigravityCredentialsTests.swift` | 6 | jetski token-file parsing, missing file, malformed JSON, empty token, unknown expiry, expired token |
+| `HeaderFormatterTests.swift` | 14 | header strings, missing windows, derived-name lookup, Gemini prefixed lookup that never steals the ChatGPT rows, Cursor `C..% A..%` pair with `--` on a missing side, and Cursor monthly lookup that resolves `(not included)` rows to nil |
+| `AntigravityUsageProviderTests.swift` | 13 | four fixed rows, worst-fraction pool merge, verbatim unknown models, expiry gate with zero network calls, 401/500 paths, exact Bearer POST shape |
+| `AntigravitySessionTests.swift` | 6 | language-server discovery, CSRF token load, missing server, malformed session, unknown expiry, expired session |
+| `CursorUsageProviderTests.swift` | 14 | basic payload mapping to two monthly rows with a shared millis-string reset, exact Connect RPC request shape, Start-plan payload without the API pool still rendering both rows, clamping 140.7 to 100 and -8 to 0, unrecognized payload and HTML-with-200 as fetch failures, missing and expired credentials with zero network calls, 401/403/500 paths, transport failure, and reset-date edge cases |
+| `CursorCredentialsTests.swift` | 6 | missing database file, missing token key, valid token decoding email and tier, expired token, undecodable token as unknown expiry, malformed database file |
 
 **Three tests are load-bearing. If you break one, you have broken the product,
 not the test.**
@@ -399,7 +502,7 @@ not the test.**
    changed" distinguishable from "this account has no limits". Collapse those
    two and a server-side break will read as an empty account forever.
 
-Fixtures: 17 JSON files plus two HTML fixtures, all with faked identifiers.
+Fixtures: 21 JSON files plus two HTML fixtures, all with faked identifiers.
 `Fixture.data(named:)` finds them under `swift test` via `Bundle.module`, under
 Xcode via `Bundle(for: TestBundleAnchor.self)`, and as a last resort on disk
 relative to `#filePath`. If you add a fixture, add it to all three assumptions
@@ -443,7 +546,7 @@ What was not checked anywhere, and needs a Mac:
 | Not checked | Needs |
 |---|---|
 | That the Swift compiles | `swift build` (verified: passes) |
-| That the tests pass | `swift test` (verified: 70/70) and `xcodebuild test` |
+| That the tests pass | `swift test` (verified: 116/116) and `xcodebuild test` |
 | That the endpoint responds for a real account | `curl` / `tools/probe-chatgpt-payload.py` for ChatGPT (200 live); `tools/probe-claude-cookies.py` and `swift run usage-probe` for Claude — `/api/organizations/{org}/usage` returns 200 live (this account, free plan, empty/null buckets), while the bare `claude.ai/` root returns 403 |
 | That the panel renders and the menu bar updates | running the app |
 | Threshold colors on a real vibrancy-backed panel | a screenshot, then measure on that surface |

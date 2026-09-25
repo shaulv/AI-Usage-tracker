@@ -24,6 +24,7 @@ struct LimitsPanel: View {
     @EnvironmentObject private var chatGPT: UsageStore
     @ObservedObject var claude: UsageStore
     @ObservedObject var antigravity: UsageStore
+    @ObservedObject var cursor: UsageStore
     @EnvironmentObject private var settings: AppSettings
     @Environment(\.colorScheme) private var colorScheme
 
@@ -52,6 +53,7 @@ struct LimitsPanel: View {
                 ObjectIdentifier(chatGPT),
                 ObjectIdentifier(claude),
                 ObjectIdentifier(antigravity),
+                ObjectIdentifier(cursor),
             ]
             assert(
                 Set(identifiers).count == identifiers.count,
@@ -98,6 +100,7 @@ struct LimitsPanel: View {
                 if settings.chatGPTEnabled { await chatGPT.refresh() }
                 if settings.claudeEnabled { await claude.refresh() }
                 if settings.antigravityEnabled { await antigravity.refresh() }
+                if settings.cursorEnabled { await cursor.refresh() }
             }
         } label: {
             if isRefreshing {
@@ -114,6 +117,7 @@ struct LimitsPanel: View {
         if case .refreshing = chatGPT.state { return true }
         if case .refreshing = claude.state { return true }
         if case .refreshing = antigravity.state { return true }
+        if case .refreshing = cursor.state { return true }
         return false
     }
 
@@ -206,6 +210,7 @@ struct LimitsPanel: View {
             settings.chatGPTEnabled ? nil : "ChatGPT",
             settings.claudeEnabled ? nil : "Claude",
             settings.antigravityEnabled ? nil : "Gemini",
+            settings.cursorEnabled ? nil : "Cursor",
         ].compactMap { $0 }
         return off.count == 1 ? off[0] : nil
     }
@@ -231,6 +236,7 @@ struct LimitsPanel: View {
         if settings.chatGPTEnabled { list.append(("ChatGPT", chatGPT)) }
         if settings.claudeEnabled { list.append(("Claude", claude)) }
         if settings.antigravityEnabled { list.append(("Gemini", antigravity)) }
+        if settings.cursorEnabled { list.append(("Cursor", cursor)) }
         return list
     }
 

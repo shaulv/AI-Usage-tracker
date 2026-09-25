@@ -18,16 +18,18 @@ check() { # check <label> <expected> <actual>
 echo "== counts =="
 # .build/ is build output, never source: prune it everywhere or a stale
 # derived file makes every count a lie.
-check "swift files"        28 "$(find . -path './.build' -prune -o -name '*.swift' -print | wc -l | tr -d ' ')"
-check "test functions"     91 "$(grep -rhoE 'func test_' Tests | wc -l | tr -d ' ')"
+check "swift files"        33 "$(find . -path './.build' -prune -o -name '*.swift' -print | wc -l | tr -d ' ')"
+check "test functions"     116 "$(grep -rhoE 'func test_' Tests | wc -l | tr -d ' ')"
 check "provider tests"     17 "$(grep -cE 'func test_' Tests/ChatGPTUsageCoreTests/ChatGPTUsageProviderTests.swift | tr -d ' ')"
 check "credentials tests"  15 "$(grep -cE 'func test_' Tests/ChatGPTUsageCoreTests/CodexCredentialsTests.swift | tr -d ' ')"
 check "store tests"        12 "$(grep -cE 'func test_' Tests/ChatGPTUsageCoreTests/UsageStoreTests.swift | tr -d ' ')"
 check "claude tests"       19 "$(grep -cE 'func test_' Tests/ChatGPTUsageCoreTests/ClaudeUsageProviderTests.swift | tr -d ' ')"
-check "header tests"        9 "$(grep -cE 'func test_' Tests/ChatGPTUsageCoreTests/HeaderFormatterTests.swift | tr -d ' ')"
+check "header tests"       14 "$(grep -cE 'func test_' Tests/ChatGPTUsageCoreTests/HeaderFormatterTests.swift | tr -d ' ')"
 check "antigravity provider tests" 13 "$(grep -cE 'func test_' Tests/ChatGPTUsageCoreTests/AntigravityUsageProviderTests.swift | tr -d ' ')"
 check "antigravity session tests"   6 "$(grep -cE 'func test_' Tests/ChatGPTUsageCoreTests/AntigravitySessionTests.swift | tr -d ' ')"
-check "json fixtures"      17 "$(ls Tests/ChatGPTUsageCoreTests/Fixtures/*.json | wc -l | tr -d ' ')"
+check "cursor credentials tests"    6 "$(grep -cE 'func test_' Tests/ChatGPTUsageCoreTests/CursorCredentialsTests.swift | tr -d ' ')"
+check "cursor provider tests"      14 "$(grep -cE 'func test_' Tests/ChatGPTUsageCoreTests/CursorUsageProviderTests.swift | tr -d ' ')"
+check "json fixtures"      21 "$(ls Tests/ChatGPTUsageCoreTests/Fixtures/*.json | wc -l | tr -d ' ')"
 check "html fixtures"       2 "$(ls Tests/ChatGPTUsageCoreTests/Fixtures/*.html | wc -l | tr -d ' ')"
 
 echo
@@ -104,11 +106,20 @@ PY
 [ $? -ne 0 ] && fail=1
 
 echo
+echo
+
 echo "== no writes to the credential file, one network site =="
-if grep -rn 'write(to:\|removeItem\|FileHandle' Sources/ ; then
+# Allowed: CursorCredentials.swift deletes ONLY its own /tmp snapshot copy
+# (removeItem(at: tempURL)) plus the temp sidecars (-wal/-shm/-journal) that
+# it copied alongside the snapshot. Any other write/remove/FileHandle fails.
+if grep -rn 'write(to:' Sources/ ; then
+  echo "FAIL  Sources/ writes to disk"; fail=1
+elif grep -rn 'FileHandle' Sources/ ; then
+  echo "FAIL  Sources/ writes to disk"; fail=1
+elif grep -rn 'removeItem' Sources/ | grep -v 'tempURL' ; then
   echo "FAIL  Sources/ writes to disk"; fail=1
 else
-  echo "ok    Sources/ never writes"
+  echo "ok    Sources/ never writes (except its own /tmp snapshot cleanup)"
 fi
 check "URLSession call sites" 1 "$(grep -o 'URLSession(' Sources/ChatGPTUsageCore/ChatGPTUsageProvider.swift | wc -l | tr -d ' ')"
 

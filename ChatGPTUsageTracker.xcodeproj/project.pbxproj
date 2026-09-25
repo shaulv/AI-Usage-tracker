@@ -8,6 +8,9 @@
 
 /* Begin PBXBuildFile section */
 		096FFD6C2A48F3C8340FB04A /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A844750E9093BC3604BEC419 /* AppDelegate.swift */; };
+		5F5090F0575BD9C4994B079E /* CursorCredentials.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEFF16FD3CA37A5C87E864EF /* CursorCredentials.swift */; };
+		1F55C292E46AB5F70293A335 /* CursorUsageProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = B31942CED0A424CC32C282CA /* CursorUsageProvider.swift */; };
+		38E479CCA435FB016E219400 /* CursorUsageResponse.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E240927885A9BE661F726DB /* CursorUsageResponse.swift */; };
 		233B74B227D572DC1E98EFB1 /* ThresholdColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = D755E13F07D2F8DA06060AB1 /* ThresholdColors.swift */; };
 		2FDBEE0E6ACCF80F4F096C4F /* CodexCredentialsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 753C5A26573B31C6AD19DB35 /* CodexCredentialsTests.swift */; };
 		337474310658DBF18E0AAD81 /* ChatGPTUsageProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9751E1C54AEF4E16019B58AB /* ChatGPTUsageProviderTests.swift */; };
@@ -90,6 +93,9 @@
 
 /* Begin PBXFileReference section */
 		0E2FB871FF02697CA5F8F0E4 /* LimitsPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LimitsPanel.swift; sourceTree = "<group>"; };
+		AEFF16FD3CA37A5C87E864EF /* CursorCredentials.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CursorCredentials.swift; sourceTree = "<group>"; };
+		B31942CED0A424CC32C282CA /* CursorUsageProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CursorUsageProvider.swift; sourceTree = "<group>"; };
+		9E240927885A9BE661F726DB /* CursorUsageResponse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CursorUsageResponse.swift; sourceTree = "<group>"; };
 		126F7F7250ACC23332971B2E /* AntigravityQuotaSummary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AntigravityQuotaSummary.swift; sourceTree = "<group>"; };
 		149F8B756379F9A9D5CF94DE /* ChatGPTUsageTracker.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ChatGPTUsageTracker.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		317FA02300E30D763B728BEE /* UsageStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageStoreTests.swift; sourceTree = "<group>"; };
@@ -165,6 +171,9 @@
 				66C17B70B7D17D5653638511 /* ChatGPTUsageResponse.swift */,
 				BC9A21ED8B5288BABC7E1DEC /* ClaudeCredentials.swift */,
 				CF918AE01C8A831239A56540 /* ClaudeUsageProvider.swift */,
+			AEFF16FD3CA37A5C87E864EF /* CursorCredentials.swift */,
+			B31942CED0A424CC32C282CA /* CursorUsageProvider.swift */,
+			9E240927885A9BE661F726DB /* CursorUsageResponse.swift */,
 				F1163514BBABA996BD7CAFFF /* ClaudeUsageResponse.swift */,
 				FA0D22989CF32EB1563F2356 /* CodexCredentials.swift */,
 				FF2DA81ECE45F1478F2C1056 /* HeaderFormatter.swift */,
@@ -367,6 +376,9 @@
 				497C8D774189B5271268DE9B /* ChatGPTUsageResponse.swift in Sources */,
 				46B0C4C78C72F30844423CBC /* ClaudeCredentials.swift in Sources */,
 				DF745C3B6D616E63D91BF25D /* ClaudeUsageProvider.swift in Sources */,
+				5F5090F0575BD9C4994B079E /* CursorCredentials.swift in Sources */,
+				1F55C292E46AB5F70293A335 /* CursorUsageProvider.swift in Sources */,
+				38E479CCA435FB016E219400 /* CursorUsageResponse.swift in Sources */,
 				7037EA6EC9A0A99C6FBAF412 /* ClaudeUsageResponse.swift in Sources */,
 				EF99610AFEC9887F395D6F54 /* CodexCredentials.swift in Sources */,
 				EE0E5CBE92BB3CD3254FE045 /* HeaderFormatter.swift in Sources */,

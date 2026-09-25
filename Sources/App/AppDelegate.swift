@@ -31,6 +31,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         provider: AntigravityUsageProvider(),
         selectionKey: "selectedLimitName.antigravity"
     )
+    @MainActor private lazy var cursorStore = UsageStore(
+        provider: CursorUsageProvider(),
+        selectionKey: "selectedLimitName.cursor"
+    )
     private var cancellables = Set<AnyCancellable>()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -65,7 +69,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     /// Title recomputes from whichever provider is enabled: ChatGPT first,
-    /// Claude when ChatGPT is off, Gemini when both are off, honest dashes
+    /// Claude when ChatGPT is off, Cursor next, Gemini last, honest dashes
     /// when no provider has data.
     private func updateStatusTitle() {
         let primary: UsageStore?
@@ -73,13 +77,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             primary = chatGPTStore
         } else if settings.claudeEnabled {
             primary = claudeStore
+        } else if settings.cursorEnabled {
+            primary = cursorStore
         } else if settings.antigravityEnabled {
             primary = antigravityStore
         } else {
             primary = nil
         }
         let title: String
-        if let store = primary {
+        if primary === cursorStore, let store = primary {
+            let limits = store.limits
+            let auto = settings.showRemaining
+                ? limits.flatMap(UsageWindowLookup.cursorAutoRemainingPercent(in:))
+                : limits.flatMap(UsageWindowLookup.cursorAutoPercent(in:))
+            let api = settings.showRemaining
+                ? limits.flatMap(UsageWindowLookup.cursorApiRemainingPercent(in:))
+                : limits.flatMap(UsageWindowLookup.cursorApiPercent(in:))
+            title = HeaderFormatter.cursorTitle(autoLeft: auto, apiLeft: api)
+        } else if let store = primary {
             let limits = store.limits
             let session = settings.showRemaining
                 ? limits.flatMap(UsageWindowLookup.sessionRemainingPercent(in:))
@@ -109,7 +124,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             settings.objectWillChange,
             chatGPTStore.objectWillChange,
             claudeStore.objectWillChange,
-            antigravityStore.objectWillChange
+            antigravityStore.objectWillChange,
+            cursorStore.objectWillChange
         )
         .receive(on: DispatchQueue.main)
         .sink { [weak self] in self?.updateStatusTitle() }
@@ -185,7 +201,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         // Claude and Gemini are passed as arguments, not as environment
         // objects: the environment is keyed by type, so extra `UsageStore`s
         // there would silently overwrite ChatGPT's (measured before this fix).
-        let root = LimitsPanel(claude: claudeStore, antigravity: antigravityStore)
+        let root = LimitsPanel(claude: claudeStore, antigravity: antigravityStore, cursor: cursorStore)
             .environmentObject(chatGPTStore)
             .environmentObject(settings)
         panel.contentView = NSHostingView(rootView: root)
@@ -278,6 +294,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         antigravityItem.state = settings.antigravityEnabled ? .on : .off
         menu.addItem(antigravityItem)
 
+        let cursorItem = NSMenuItem(title: "Cursor", action: #selector(menuToggleCursor), keyEquivalent: "")
+        cursorItem.target = self
+        cursorItem.state = settings.cursorEnabled ? .on : .off
+        menu.addItem(cursorItem)
+
         menu.addItem(.separator())
 
         let headerRoot = NSMenuItem(title: "Menu Bar Shows", action: nil, keyEquivalent: "")
@@ -342,6 +363,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         settings.antigravityEnabled.toggle()
     }
 
+    @objc private func menuToggleCursor() {
+        settings.cursorEnabled.toggle()
+    }
+
     @objc private func menuSetHeaderStyle(_ sender: NSMenuItem) {
         guard let raw = sender.representedObject as? String,
               let style = HeaderStyle(rawValue: raw)
@@ -367,6 +392,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         settings.$antigravityEnabled
             .removeDuplicates()
             .sink { [weak self] enabled in self?.apply(antigravity: enabled) }
+            .store(in: &cancellables)
+        settings.$cursorEnabled
+            .removeDuplicates()
+            .sink { [weak self] enabled in self?.apply(cursor: enabled) }
             .store(in: &cancellables)
     }
 
@@ -395,5 +424,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         antigravityStore.start()
         Task { await antigravityStore.refresh() }
+    }
+
+    private func apply(cursor enabled: Bool) {
+        guard enabled else {
+            cursorStore.stop()
+            return
+        }
+        cursorStore.start()
+        Task { await cursorStore.refresh() }
     }
 }

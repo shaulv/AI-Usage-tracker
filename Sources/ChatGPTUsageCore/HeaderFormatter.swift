@@ -7,11 +7,14 @@ public enum HeaderStyle: String, CaseIterable, Codable {
     case sessionOnly
     /// `S6% W47%` — session and weekly side by side; `S` = session, `W` = weekly.
     case sessionWeekly
+    /// `C70% A54%` — Cursor monthly pair; `C` = Cursor Auto left, `A` = Cursor API left.
+    case cursorMonthly
 
     public var displayName: String {
         switch self {
         case .sessionOnly: return "Session limit"
         case .sessionWeekly: return "Session + weekly"
+        case .cursorMonthly: return "Cursor Auto + API"
         }
     }
 }
@@ -30,7 +33,18 @@ public enum HeaderFormatter {
             let s = sessionPercent.map { "\($0)" } ?? "--"
             let w = weeklyPercent.map { "\($0)" } ?? "--"
             return "S\(s)% W\(w)%"
+        case .cursorMonthly:
+            let c = sessionPercent.map { "\($0)" } ?? "--"
+            let a = weeklyPercent.map { "\($0)" } ?? "--"
+            return "C\(c)% A\(a)%"
         }
+    }
+
+    /// Cursor monthly pair: reuses the session/weekly slots so the header menu
+    /// needs no new shape. Callers pass Auto-left as sessionPercent and
+    /// API-left as weeklyPercent.
+    public static func cursorTitle(autoLeft: Int?, apiLeft: Int?) -> String {
+        title(style: .cursorMonthly, sessionPercent: autoLeft, weeklyPercent: apiLeft)
     }
 }
 
@@ -82,5 +96,33 @@ public enum UsageWindowLookup {
     public static func geminiWeeklyRemainingPercent(in limits: [UsageLimit]) -> Int? {
         guard let weekly = limits.first(where: { $0.name == "Gemini Weekly" }) else { return nil }
         return weekly.remainingPercentRounded
+    }
+
+    /// Cursor-side views over the fixed monthly row names. Matches the exact
+    /// names first, then the "(not included)" suffixed variants, so a plan
+    /// without the API pool still resolves its Auto row and honestly reports
+    /// the missing side as nil (rendered `--` upstream).
+    public static func cursorAutoPercent(in limits: [UsageLimit]) -> Int? {
+        guard let row = limits.first(where: { $0.name.hasPrefix("Cursor Auto") }) else { return nil }
+        if row.name.contains("not included") { return nil }
+        return row.usedPercentRounded
+    }
+
+    public static func cursorApiPercent(in limits: [UsageLimit]) -> Int? {
+        guard let row = limits.first(where: { $0.name.hasPrefix("Cursor API") }) else { return nil }
+        if row.name.contains("not included") { return nil }
+        return row.usedPercentRounded
+    }
+
+    public static func cursorAutoRemainingPercent(in limits: [UsageLimit]) -> Int? {
+        guard let row = limits.first(where: { $0.name.hasPrefix("Cursor Auto") }) else { return nil }
+        if row.name.contains("not included") { return nil }
+        return row.remainingPercentRounded
+    }
+
+    public static func cursorApiRemainingPercent(in limits: [UsageLimit]) -> Int? {
+        guard let row = limits.first(where: { $0.name.hasPrefix("Cursor API") }) else { return nil }
+        if row.name.contains("not included") { return nil }
+        return row.remainingPercentRounded
     }
 }
