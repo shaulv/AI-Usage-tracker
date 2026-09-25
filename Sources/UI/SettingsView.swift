@@ -55,7 +55,7 @@ struct SettingsView: View {
                         get: { Double(settings.warningRemainingThreshold) },
                         set: { settings.warningRemainingThreshold = Int($0) }
                     ),
-                    in: Double(settings.criticalRemainingThreshold + 1)...50,
+                    in: warningSliderRange,
                     step: 1
                 )
             }
@@ -76,7 +76,7 @@ struct SettingsView: View {
                         get: { Double(settings.criticalRemainingThreshold) },
                         set: { settings.criticalRemainingThreshold = Int($0) }
                     ),
-                    in: 1...Double(min(settings.warningRemainingThreshold - 1, 30)),
+                    in: criticalSliderRange,
                     step: 1
                 )
             }
@@ -125,6 +125,25 @@ struct SettingsView: View {
                 .controlSize(.small)
             }
         }
+    }
+
+    /// The warning band has to start just above the critical threshold.
+    ///
+    /// `max(lower, 50)` is load-bearing: `ThresholdConfiguration` allows
+    /// critical up to 98, which makes `critical + 1 == 99` and the old
+    /// `99...50` an inverted closed range - SwiftUI traps on that with
+    /// "Range requires lowerBound <= upperBound". The clamp keeps the range
+    /// ordered at every setting while leaving the default 20/10 band alone.
+    private var warningSliderRange: ClosedRange<Double> {
+        let lower = Double(settings.criticalRemainingThreshold + 1)
+        return lower...max(lower, 50)
+    }
+
+    /// Same invariant on the critical side: the upper bound is pinned below the
+    /// warning threshold and never allowed under 1, so `1...x` can never invert.
+    private var criticalSliderRange: ClosedRange<Double> {
+        let upper = Double(max(1, min(settings.warningRemainingThreshold - 1, 30)))
+        return 1...upper
     }
 
     private func badge(color: Color, title: String, range: String) -> some View {

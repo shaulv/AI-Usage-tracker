@@ -47,7 +47,7 @@ Click the status item for a floating, draggable, resizable panel with every
 limit on all four accounts; stretch it edge-to-edge for a one-line strip that stays
 on top in any space. Right-click the status item for settings: show/hide panel,
 start at login, ChatGPT on/off, Claude on/off, Gemini on/off, Cursor on/off,
-header format, `Settings...`, quit. The `Settings...` window holds the alert
+header format, `Thresholds & Notifications...`, quit. That window holds the alert
 thresholds, the notification toggles, and a test-notification button.
 
 Cursor reports what is LEFT this month: `Cursor Auto` (Cursor Models pool) and
@@ -76,7 +76,7 @@ used. Three statuses, driven by two user-set thresholds:
 | Critical | red | remaining% <= critical threshold |
 
 Defaults are 20% left for Warning and 10% left for Critical. Change them in
-Settings (right-click the menu-bar icon, then `Settings...`). The invariant is
+Notifications (right-click the menu-bar icon, then `Thresholds & Notifications...`, or Cmd-). The invariant is
 enforced in code: `0 < critical < warning < 100`.
 
 **Status drives everything downstream:**
@@ -101,7 +101,7 @@ Alert copy:
 
 Clicking a notification activates the app and brings the floating panel
 forward. macOS notification permission is requested on first launch, and the
-Settings window has a `Send Test Notification` button to verify it.
+thresholds window has a `Send Test Notification` button to verify it.
 
 ---
 
@@ -744,5 +744,21 @@ the core framework judges each window by percentage LEFT against two
 user-set thresholds, and an app-layer engine turns escalations into native
 macOS banners. Notifications are edge-triggered on purpose, so a limit that
 sits in the warning band for an hour alerts once, not once a minute.
+
+Opening the settings window killed the app twice on 2026-09-26 (SIGTRAP in
+`+[NSApplication _crashOnException:]`, then SIGABRT in `objc_exception_rethrow`, both inside
+`NSWindow updateConstraintsIfNeeded` on an `NSHostingView`). Two causes, both removed:
+
+1. The hand-rolled window reassigned `styleMask` *after* `NSWindow(contentViewController:)`,
+   which invalidates the constraints AppKit had already installed for the
+   content view controller. The mask is no longer touched.
+2. `Settings { EmptyView() }` made macOS generate a Cmd-, menu item for a scene
+   with no content, so `NSHostingView` had nothing to size to. The scene now hosts
+   the real `SettingsView`, and the right-click item dispatches to that same
+   action instead of building a second window.
+
+Verify after touching either path: crash reports under
+`~/Library/Logs/DiagnosticReports/` must not increase when Cmd-, is pressed,
+and `get count of windows of process "AI Usage tracker"` must be 2.
 
 Full reasoning, sources, and the acceptance contract are in `PLAN-v2.md`.

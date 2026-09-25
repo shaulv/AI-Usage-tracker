@@ -18,7 +18,7 @@ import ChatGPTUsageCore
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNotificationCenterDelegate {
     private var statusItem: NSStatusItem!
     private var panel: NSPanel?
-    private let settings = AppSettings()
+    let settings = AppSettings()
     // Lazy: UsageStore is MainActor-isolated and these stored properties are
     // initialized in applicationDidFinishLaunching, which is MainActor context.
     @MainActor private lazy var chatGPTStore = UsageStore(
@@ -37,7 +37,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         provider: CursorUsageProvider(),
         selectionKey: "selectedLimitName.cursor"
     )
-    @MainActor private lazy var notificationEngine = UsageNotificationEngine(settings: settings)
+    @MainActor lazy var notificationEngine = UsageNotificationEngine(settings: settings)
     private var settingsWindow: NSWindow?
 
     private var cancellables = Set<AnyCancellable>()
@@ -323,7 +323,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         loginItem.target = self
         loginItem.state = SMAppService.mainApp.status == .enabled ? .on : .off
         let settingsItem = NSMenuItem(
-            title: "Settings…",
+            title: "Thresholds & Notifications…",
             action: #selector(menuOpenSettings),
             keyEquivalent: ","
         )
@@ -494,24 +494,68 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
 
     // MARK: - Settings Window
 
+    /// The single entry point the right-click menu uses. Cmd-, and the
+    /// auto-generated app-menu item reach the same SwiftUI `Settings` scene,
+    /// so there is exactly one thresholds window however it was summoned.
     @objc private func menuOpenSettings() {
-        if let settingsWindow {
-            settingsWindow.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
+        openSettingsWindow()
+    }
+
+    private func openSettingsWindow() {
+        // This app is LSUIElement (no Dock icon). Activate BEFORE asking for
+        // the window, or it is ordered in behind whatever app is focused and
+        // the user sees nothing - which reads as "the app has no settings".
+        NSApp.activate(ignoringOtherApps: true)
+
+        // macOS 13 renamed the action; probe both so the same window opens on
+        // either SDK. A Bool here means "the Settings scene handled it".
+        if NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil) {
+            reassertActivation()
+            return
+        }
+        if NSApp.sendAction(Selector(("showSettings:")), to: nil, from: nil) {
+            reassertActivation()
             return
         }
 
-        let view = SettingsView(settings: settings, notificationEngine: notificationEngine)
-        let hosting = NSHostingController(rootView: view)
+        // Fallback: the scene's action is unavailable, so host the view
+        // ourselves. NOTE: never reassign `styleMask` after
+        // `NSWindow(contentViewController:)` - AppKit has already installed
+        // constraints against the content view controller, and overwriting the
+        // mask invalidates them. That is what crashed in
+        // `updateConstraintsIfNeeded` (crash reports 2026-09-26-011857/011920).
+        if let settingsWindow {
+            settingsWindow.makeKeyAndOrderFront(nil)
+            reassertActivation()
+            return
+        }
+
+        let hosting = NSHostingController(
+            rootView: SettingsView(settings: settings, notificationEngine: notificationEngine)
+        )
         let window = NSWindow(contentViewController: hosting)
-        window.title = "AI Usage Tracker Settings"
-        window.styleMask = [.titled, .closable]
+        window.title = "Thresholds & Notifications"
         window.isReleasedWhenClosed = false
         window.center()
 
         self.settingsWindow = window
         window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        reassertActivation()
+    }
+
+    /// Re-activates on the next run-loop pass, after the menu tracking loop has
+    /// finished dismissing. Without this the activation that ran during menu
+    /// tracking is undone and the window sits behind the frontmost app.
+    /// Only the app is activated here: touching the panel's order would pull it
+    /// over the thresholds window.
+    private func reassertActivation() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            NSApp.activate(ignoringOtherApps: true)
+            if self.settingsWindow?.isVisible != true {
+                self.settingsWindow?.makeKeyAndOrderFront(nil)
+            }
+        }
     }
 
     // MARK: - UNUserNotificationCenterDelegate
