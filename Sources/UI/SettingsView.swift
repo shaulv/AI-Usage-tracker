@@ -1,10 +1,11 @@
 import SwiftUI
+import AppKit
 import ChatGPTUsageCore
 
 /// User preferences window for configuring quota alert thresholds and notifications.
 struct SettingsView: View {
     @ObservedObject var settings: AppSettings
-    let notificationEngine: UsageNotificationEngine
+    @ObservedObject var notificationEngine: UsageNotificationEngine
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
@@ -107,6 +108,21 @@ struct SettingsView: View {
             Text("Native macOS Notifications")
                 .font(.subheadline.weight(.semibold))
 
+            // Live OS authorization state. Without this a refused notification
+            // is indistinguishable from a working button that silently does
+            // nothing - which is exactly how this bug was reported.
+            HStack(spacing: 6) {
+                Text("Permission:")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text(notificationEngine.authorizationState)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(
+                        notificationEngine.notificationsBlocked ? Color.red : Color.primary
+                    )
+                Spacer()
+            }
+
             Toggle("Enable Usage Notifications", isOn: $settings.notificationsEnabled)
 
             VStack(alignment: .leading, spacing: 8) {
@@ -119,12 +135,40 @@ struct SettingsView: View {
 
             HStack {
                 Spacer()
+                if notificationEngine.notificationsBlocked {
+                    Button("Open System Settings") {
+                        Self.openNotificationSettings()
+                    }
+                    .controlSize(.small)
+                    .help("Open the Notifications pane for this app")
+                }
                 Button("Send Test Notification") {
                     notificationEngine.sendTestNotification()
                 }
                 .controlSize(.small)
+                .disabled(!settings.notificationsEnabled)
+            }
+
+            if let result = notificationEngine.lastTestResult {
+                Text(result)
+                    .font(.caption)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .foregroundStyle(
+                        notificationEngine.lastTestSucceeded ? Color.green : Color.red
+                    )
+                    .accessibilityLabel(result)
             }
         }
+        .onAppear { notificationEngine.refreshAuthorizationStatus() }
+    }
+
+    /// Deep link to the Notifications pane. It only lists the app once the OS
+    /// has recorded a decision, which is why the button is shown only when the
+    /// permission is already known to be blocked.
+    private static func openNotificationSettings() {
+        guard let url = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension")
+        else { return }
+        NSWorkspace.shared.open(url)
     }
 
     /// The warning band has to start just above the critical threshold.
