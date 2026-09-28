@@ -46,6 +46,12 @@ public enum HeaderFormatter {
     public static func cursorTitle(autoLeft: Int?, apiLeft: Int?) -> String {
         title(style: .cursorMonthly, sessionPercent: autoLeft, weeklyPercent: apiLeft)
     }
+
+    /// Grok weekly: reuses the session-only slot so the header menu needs no
+    /// new shape. The single weekly row is the only number Grok reports.
+    public static func grokTitle(weeklyLeft: Int?) -> String {
+        title(style: .sessionOnly, sessionPercent: weeklyLeft, weeklyPercent: nil)
+    }
 }
 
 /// Finds the session and weekly rows in a provider's limits by the same
@@ -118,6 +124,20 @@ public enum UsageWindowLookup {
         guard let row = limits.first(where: { $0.name.hasPrefix("Cursor Auto") }) else { return nil }
         if row.name.contains("not included") { return nil }
         return row.remainingPercentRounded
+    }
+
+    /// Grok-side views over the single weekly row name. The Grok row shares
+    /// its `Weekly` name with ChatGPT's own weekly row by design (they never
+    /// share a panel section lookup: each lookup runs over one provider's
+    /// own limits), so no provider prefix is needed.
+    public static func grokWeeklyPercent(in limits: [UsageLimit]) -> Int? {
+        guard let weekly = limits.first(where: { $0.name == "Weekly" }) else { return nil }
+        return weekly.usedPercentRounded
+    }
+
+    public static func grokWeeklyRemainingPercent(in limits: [UsageLimit]) -> Int? {
+        guard let weekly = limits.first(where: { $0.name == "Weekly" }) else { return nil }
+        return weekly.remainingPercentRounded
     }
 
     public static func cursorApiRemainingPercent(in limits: [UsageLimit]) -> Int? {

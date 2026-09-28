@@ -1,8 +1,9 @@
 # AI Usage Tracker
 
 A menu-bar-only macOS app that shows how much of your AI plan usage you have
-consumed: ChatGPT windows, Claude windows, Gemini pools, and Cursor monthly
-pools, each read from that provider's own usage endpoint. It also watches the
+consumed: ChatGPT windows, Claude windows, Gemini pools, Cursor monthly
+pools, and the Grok Bot weekly window, each read from that provider's own usage
+endpoint. It also watches the
 percentage LEFT and posts native macOS notifications when a quota drops into a
 warning or critical band.
 
@@ -18,7 +19,7 @@ Your first job, in order:
 
 1. `swift build` and fix whatever the compiler finds. Expect small syntax
    errors, not design problems.
-2. `swift test`. 129 tests pass. They cover the core framework only.
+2. `swift test`. 148 tests pass. They cover the core framework only.
 3. Run the `curl` probe below against the real account. Until that returns
    `HTTP 200` with a `used_percent`, nothing else is worth doing.
 4. `xcodegen generate`, open the project, run the app, and look at the panel.
@@ -44,9 +45,9 @@ Shows usage percentages in the menu bar — the session window alone (`6%`),
 session + weekly together (`S6% W47%`), or the Cursor monthly pair (`C70% A54%`),
 pickable from the right-click menu.
 Click the status item for a floating, draggable, resizable panel with every
-limit on all four accounts; stretch it edge-to-edge for a one-line strip that stays
+limit on all five accounts; stretch it edge-to-edge for a one-line strip that stays
 on top in any space. Right-click the status item for settings: show/hide panel,
-start at login, ChatGPT on/off, Claude on/off, Gemini on/off, Cursor on/off,
+start at login, ChatGPT on/off, Claude on/off, Gemini on/off, Cursor on/off, Grok on/off,
 header format, `Thresholds & Notifications...`, quit. That window holds the alert
 thresholds, the notification toggles, and a test-notification button.
 
@@ -57,9 +58,10 @@ The menu bar pair `C..% A..%` shows the same left values (`--` on a missing side
 
 Polls adaptively: every 60 seconds while the numbers sit still, and every 10
 seconds for a minute once any percentage starts moving. Reads four local
-credential sources and four read-only local endpoints (ChatGPT's usage endpoint,
+credential sources and five read-only local endpoints (ChatGPT's usage endpoint,
 claude.ai's web usage endpoint, the Antigravity language server's loopback
-quota endpoint, and Cursor's dashboard usage endpoint). Reads nothing back to
+quota endpoint, Cursor's dashboard usage endpoint, and the Grok Bot weekly
+endpoint on Cursor's dashboard API). Reads nothing back to
 any credential source, sends nothing, tracks nothing.
 
 ---
@@ -174,6 +176,35 @@ Every Cursor message the panel can show (one per line, so the docs gate matches 
 | Cursor rejected the saved credentials - sign in to Cursor again |
 | Cursor usage service returned HTTP <...> |
 | Unexpected response from Cursor usage service |
+
+Grok rides the same shape with its own sources too. Grok Bot is a Cursor fork,
+so it keeps its session in Cursor's own transport: the encrypted token in
+`~/Library/Application Support/Grok Bot/sand-secrets.json` (base64 of
+`"v10" || AES-128-CBC(JWT)`), decrypted with the login Keychain's
+`Grok Bot Safe Storage` password exactly the way Claude Desktop's cookies are
+decrypted. The request goes to
+`POST https://api2.cursor.sh/aiserver.v1.DashboardService/GetSandUsageStatus`
+(the method Grok Bot's own profile screen calls) with the Connect RPC v1
+headers, the `x-cursor-*` / `x-sand-*` client headers, and the same checksum
+Grok Bot sends. Grok reports ONE window: a rolling weekly allowance
+(`usagePercent` used, `nextResetTimestampUtc` reset). It maps to a single
+`Weekly` row that the existing header formats and threshold engine already
+understand. The Grok CLI's billing proxy
+(`cli-chat-proxy.grok.com/v1/billing?format=credits`) was measured on this
+account and carried no weekly percent, which is why the app reads the session
+that reports.
+
+Every Grok message the panel can show (one per line, so the docs gate matches them exactly):
+
+| Message |
+|---|
+| Grok Bot is not signed in - open Grok Bot and sign in |
+| Grok Bot credentials are malformed - open Grok Bot again |
+| Grok Bot rejected the saved session - reopen Grok Bot to refresh it |
+| Grok session expired - open Grok Bot to refresh it |
+| Grok rejected the saved credentials - sign in to Grok Bot again |
+| Grok usage service returned HTTP <...> |
+| Unexpected response from Grok usage service |
 
 If any step fails, the previously shown numbers are discarded and replaced with
 `--%` plus a reason. The app never keeps displaying a stale percentage.
@@ -298,6 +329,13 @@ Sources/ChatGPTUsageCore/
   CursorCredentials.swift            CursorCredentialsSource protocol,
                                      CursorDesktopCredentialsSource (/tmp snapshot
                                      + sqlite3, JWT exp decode)
+  GrokCredentials.swift              GrokCredentialsSource protocol,
+                                     GrokBotCredentialsSource (sand-secrets.json
+                                     + Keychain v10 AES decrypt, JWT exp decode)
+  GrokUsageResponse.swift            Decodable DTO for GetSandUsageStatus and
+                                     toUsageLimits(now:) mapping one Weekly row
+  GrokUsageProvider.swift            the Grok POST, sand headers, checksum,
+                                     every failure path
   UsageStore.swift                   selection, adaptive timer (60s/10s burst),
                                      the never-stale rule
   ClaudeCredentials.swift            ClaudeSessionSource protocol,
@@ -321,7 +359,7 @@ Sources/ChatGPTUsageCore/
 
 Sources/App/ChatGPTUsageTrackerApp.swift   @main entry, delegates to AppDelegate
 Sources/App/AppDelegate.swift              NSStatusItem, NSPanel host, right-click
-                                           menu, all four UsageStore instances
+                                           menu, all five UsageStore instances
 Sources/App/AppSettings.swift              persisted toggles + header style,
                                            thresholds and notification prefs
 Sources/App/NotificationEngine.swift       NotificationClient protocol,
@@ -348,7 +386,7 @@ Tests/ChatGPTUsageCoreTests/
     CursorUsageProviderTests.swift     14 tests
     CursorCredentialsTests.swift        6 tests
     UsageStatusEngineTests.swift       13 tests
-    Fixtures/                          21 JSON payloads plus two HTML fixtures
+    Fixtures/                          24 JSON payloads plus two HTML fixtures
 ```
 
 ---
@@ -443,6 +481,47 @@ Three facts that are easy to get wrong:
 3. **A missing pool is a real answer.** The Start plan omits the API pool;
    that row renders `(not included)` at zero rather than erroring.
 
+### Grok endpoint contract
+
+```
+POST https://api2.cursor.sh/aiserver.v1.DashboardService/GetSandUsageStatus
+Authorization: Bearer <decrypted sand-secrets.json JWT>   required
+Content-Type: application/json                           required
+Connect-Protocol-Version: 1                              required
+x-cursor-checksum: <base64url(rolling-XOR timestamp)><machine-id>  required
+x-cursor-client-type: sand / -source: sand-desktop / -version: <app>  required
+x-sand-box-namespace: prod / x-cursor-client-os: CLIENT_OS_MACOS     required
+x-ghost-mode: true / x-request-id: <uuid>                            required
+body: {}                                                 required
+timeout 15 s
+```
+
+Response, trimmed to what the code reads (captured live 29/09/2026, HTTP 200):
+
+```json
+{
+  "currentPeriodStart": "2026-09-24T23:14:29.359Z",
+  "nextResetTimestampUtc": "2026-10-01T23:14:29.359Z",
+  "usagePercent": 11.578285,
+  "hasAvailableUsage": true,
+  "hasNonZeroIncludedLimit": true,
+  "grokPlanLabel": "Grok Bot Plan",
+  "cursorPlanName": "Pro",
+  "billingBrand": "SAND_BILLING_BRAND_CURSOR"
+}
+```
+
+Three facts that are easy to get wrong:
+
+1. **`usagePercent` is USED, not remaining.** The opposite of the Antigravity
+   buckets, which report `remainingFraction`. `11.578285` renders as `12%`.
+2. **One window, named directly.** Grok Bot's own method is literally
+   `fetchSandWeeklyUsage`; the reset sits 7 days after the period start. No
+   `WindowNamer` duration math is needed, the row is named `Weekly`.
+3. **No metered percent is a real answer.** An account with no included limit
+   answers 200 with `usagePercent` absent; that produces an honest empty list,
+   never a zero row.
+
 ---
 
 ## Why it is built this way
@@ -520,6 +599,13 @@ user reports one of these, the fix is on the right, not in the code.
 | `Antigravity rejected the saved session - open Antigravity to refresh it` | notConnected | HTTP 401 or 403 | open Antigravity IDE or run `agy` once |
 | `Antigravity usage service returned HTTP <code>` | fetchFailed | any other non-2xx | server side; retry later |
 | `Unexpected response from Antigravity usage service` | fetchFailed | body did not decode, or no `buckets` present | **the endpoint changed.** Same drill as the ChatGPT side. |
+| `Grok Bot is not signed in - open Grok Bot and sign in` | notConnected | `sand-secrets.json` missing, or the Keychain password is unavailable | open Grok Bot and sign in |
+| `Grok Bot credentials are malformed - open Grok Bot again` | notConnected | `sand-secrets.json` is not valid JSON | open Grok Bot again |
+| `Grok Bot rejected the saved session - reopen Grok Bot to refresh it` | notConnected | the token blob did not decrypt | reopen Grok Bot (it refreshes its own session) |
+| `Grok session expired - open Grok Bot to refresh it` | notConnected | JWT `exp` is more than 60 s in the past | open Grok Bot once |
+| `Grok rejected the saved credentials - sign in to Grok Bot again` | notConnected | HTTP 401 or 403 | sign in to Grok Bot again |
+| `Grok usage service returned HTTP <...>` | fetchFailed | any other non-2xx | server side; retry later |
+| `Unexpected response from Grok usage service` | fetchFailed | body did not decode, or none of `currentPeriodStart`, `nextResetTimestampUtc`, `usagePercent` was present | **the endpoint changed.** Same drill as the ChatGPT side. |
 
 The panel footer always shows one of: `not fetched yet`, `updating…`,
 `updated HH:mm`, or `failed, last good HH:mm`. That line exists so a silently
@@ -531,7 +617,7 @@ The menu bar shows `--%` whenever there is nothing honest to display.
 
 ## Tests
 
-129 tests, all in the core framework, none of them touching the network or the
+148 tests, all in the core framework, none of them touching the network or the
 real home directory. Transport and credentials source are both injected.
 
 | File | Count | Covers |
@@ -543,7 +629,10 @@ real home directory. Transport and credentials source are both injected.
 | `HeaderFormatterTests.swift` | 14 | header strings, missing windows, derived-name lookup, Gemini prefixed lookup that never steals the ChatGPT rows, Cursor `C..% A..%` pair with `--` on a missing side, and Cursor monthly lookup that resolves `(not included)` rows to nil |
 | `AntigravityUsageProviderTests.swift` | 13 | four fixed rows, worst-fraction pool merge, verbatim unknown models, expiry gate with zero network calls, 401/500 paths, exact Bearer POST shape |
 | `AntigravitySessionTests.swift` | 6 | language-server discovery, CSRF token load, missing server, malformed session, unknown expiry, expired session |
+| `GrokUsageProviderTests.swift` | 12 | weekly payload mapping, exact request shape and checksum, honest empty, failure paths |
 | `CursorUsageProviderTests.swift` | 14 | basic payload mapping to two monthly rows with a shared millis-string reset, exact Connect RPC request shape, Start-plan payload without the API pool still rendering both rows, clamping 140.7 to 100 and -8 to 0, unrecognized payload and HTML-with-200 as fetch failures, missing and expired credentials with zero network calls, 401/403/500 paths, transport failure, and reset-date edge cases |
+| `GrokUsageProviderTests.swift` | 12 | weekly payload maps one `Weekly` row with the server reset date, exact sand header set plus checksum suffix and empty body, deterministic checksum prefix, no-percent payload is an honest empty, unrecognized payload and non-JSON body are fetch failures, credential errors propagate with zero network calls, the expired-token gate, 401/403/500 paths, and transport failure |
+| `GrokCredentialsTests.swift` | 7 | decrypt-shape refusals (wrong prefix, wrong key length, empty blob), malformed secrets file, missing account slot, undecryptable blob, JWT `exp` decode including garbage input, and the 60 second grace window |
 | `CursorCredentialsTests.swift` | 6 | missing database file, missing token key, valid token decoding email and tier, expired token, undecodable token as unknown expiry, malformed database file |
 | `UsageStatusEngineTests.swift` | 13 | remaining-percent evaluation at, above and below both thresholds, the `0 < critical < warning < 100` clamp, and every `UsageStatusTracker` branch: first crossing into warning, no duplicate while the level holds, escalation warning to critical, a direct ok to critical plunge, and a silent reset back to OK that re-arms the next crossing |
 
@@ -560,7 +649,7 @@ not the test.**
    changed" distinguishable from "this account has no limits". Collapse those
    two and a server-side break will read as an empty account forever.
 
-Fixtures: 21 JSON files plus two HTML fixtures, all with faked identifiers.
+Fixtures: 24 JSON files plus two HTML fixtures, all with faked identifiers.
 `Fixture.data(named:)` finds them under `swift test` via `Bundle.module`, under
 Xcode via `Bundle(for: TestBundleAnchor.self)`, and as a last resort on disk
 relative to `#filePath`. If you add a fixture, add it to all three assumptions
@@ -589,12 +678,12 @@ What was actually checked on the machine where this was written, and how:
 
 | Checked | How |
 |---|---|
-| All 21 JSON fixtures parse | `jq -e .` on each |
+| All 24 JSON fixtures parse | `jq -e .` on each |
 | Epoch-second claims in fixtures and tests | recomputed: `1785024392` is `2026-07-26T00:06:32Z`, `1785040089` is `2026-07-26T04:28:09Z`, `1785024392 - 589104` is `2026-07-19T04:28:08Z` |
 | The three base64url JWT payloads in the tests | re-encoded from the literal JSON, byte for byte |
 | Threshold color contrast | WCAG relative luminance against `#FFFFFF` and `#1C1C1E`; all six at or above 4.5:1 |
 | No placeholder or elided code | grep for `TODO`, `FIXME`, `implement here`, `rest of code`, `similar to above`, `for brevity` returns nothing |
-| Brace balance in all 38 Swift files | counted with strings and comments stripped; 0 imbalanced |
+| Brace balance in all 43 Swift files | counted with strings and comments stripped; 0 imbalanced |
 | `project.yml` is valid | parsed as YAML; three targets, one scheme |
 | No writes to the auth file | grep for `write(to:`, `removeItem`, `FileHandle` across `Sources/` returns nothing |
 | Exactly one network site | `URLSession` appears once, in `ChatGPTUsageProvider.urlSessionTransport` |
@@ -604,7 +693,8 @@ What was not checked anywhere, and needs a Mac:
 | Not checked | Needs |
 |---|---|
 | That the Swift compiles | `swift build` (verified: passes) |
-| That the tests pass | `swift test` (verified: 129/129) and `xcodebuild test` |
+| That the tests pass | `swift test` (verified: 148/148) and `xcodebuild test` |
+| That the Grok endpoint responds for a real account | `swift run usage-probe grok` (verified: HTTP 200, `Weekly: 12%`, live on 29/09/2026) |
 | That the endpoint responds for a real account | `curl` / `tools/probe-chatgpt-payload.py` for ChatGPT (200 live); `tools/probe-claude-cookies.py` and `swift run usage-probe` for Claude — `/api/organizations/{org}/usage` returns 200 live (this account, free plan, empty/null buckets), while the bare `claude.ai/` root returns 403 |
 | That the panel renders and the menu bar updates | running the app |
 | Threshold colors on a real vibrancy-backed panel | a screenshot, then measure on that surface |
@@ -692,9 +782,9 @@ These were applied throughout and should not drift.
    version. If you add it: `.nonactivatingPanel`, `level = .floating`,
    `hidesOnDeactivate = false`, off by default, and verify it does not cover a
    video call.
-6. **A second provider (Claude).** `UsageProvider` is the seam and it already
-   has two implementations counting the test stub, so it is a real seam. Claude
-   Code stores its credentials in the keychain and has its own usage endpoint.
+6. **Grok Bot live UI pass.** The provider fetches live (HTTP 200, `Weekly: 12%`
+   via `swift run usage-probe grok`), but no human has looked at the Grok chip in
+   the rendered panel yet. Check the five-section strip at real widths.
 7. **Multi-account switching.** Needs a credential registry, not just a picker.
 
 ---
@@ -758,6 +848,11 @@ Opening the settings window killed the app twice on 2026-09-26 (SIGTRAP in
    action instead of building a second window.
 
 Verify after touching either path: crash reports under
+`~/Library/Logs/DiagnosticReports/` must not increase when Cmd-, is pressed,
+and `get count of windows of process "AI Usage tracker"` must be 2.
+
+Full reasoning, sources, and the acceptance contract are in `PLAN-v2.md`.
+: crash reports under
 `~/Library/Logs/DiagnosticReports/` must not increase when Cmd-, is pressed,
 and `get count of windows of process "AI Usage tracker"` must be 2.
 

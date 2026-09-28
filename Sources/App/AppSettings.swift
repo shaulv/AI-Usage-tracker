@@ -26,6 +26,9 @@ final class AppSettings: ObservableObject {
     @Published var cursorEnabled: Bool {
         didSet { defaults.set(cursorEnabled, forKey: "cursorEnabled") }
     }
+    @Published var grokEnabled: Bool {
+        didSet { defaults.set(grokEnabled, forKey: "grokEnabled") }
+    }
     /// What the menu-bar status item shows: bare session percent, or the
     /// `S..% W..%` pair. A fresh install starts on the pair: a weekly window the
     /// user cannot see is the more expensive blind spot of the two.
@@ -89,6 +92,7 @@ final class AppSettings: ObservableObject {
         self.claudeEnabled = defaults.object(forKey: "claudeEnabled") as? Bool ?? true
         self.antigravityEnabled = defaults.object(forKey: "antigravityEnabled") as? Bool ?? true
         self.cursorEnabled = defaults.object(forKey: "cursorEnabled") as? Bool ?? true
+        self.grokEnabled = defaults.object(forKey: "grokEnabled") as? Bool ?? true
         let rawStyle = defaults.string(forKey: "headerStyle") ?? ""
         self.headerStyle = HeaderStyle(rawValue: rawStyle) ?? .sessionWeekly
         self.showRemaining = defaults.object(forKey: "showRemaining") as? Bool ?? true

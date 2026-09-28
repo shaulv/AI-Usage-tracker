@@ -10,7 +10,7 @@ import ChatGPTUsageCore
 /// it only reads credentials through the app's own sources and calls the app's
 /// own providers, so what it prints is exactly what the panel would render.
 ///
-/// Usage:  swift run usage-probe chatgpt | claude | antigravity | cursor | both | all
+/// Usage:  swift run usage-probe chatgpt | claude | antigravity | cursor | grok | both | all
 /// Exit:   0 when every requested provider answered, 1 when any failed.
 
 func describe(_ provider: any UsageProvider) async -> Bool {
@@ -57,6 +57,9 @@ for target in targets {
     case "cursor":
         let ok = await describe(CursorUsageProvider())
         allOK = ok && allOK
+    case "grok":
+        let ok = await describe(GrokUsageProvider())
+        allOK = ok && allOK
     case "both":
         let chatGPT = await describe(ChatGPTUsageProvider())
         let claude = await describe(ClaudeUsageProvider())
@@ -66,9 +69,10 @@ for target in targets {
         let claude = await describe(ClaudeUsageProvider())
         let antigravity = await describe(AntigravityUsageProvider())
         let cursor = await describe(CursorUsageProvider())
-        allOK = chatGPT && claude && antigravity && cursor && allOK
+        let grok = await describe(GrokUsageProvider())
+        allOK = chatGPT && claude && antigravity && cursor && grok && allOK
     default:
-        print("unknown target '\(target)'. Use: chatgpt | claude | antigravity | cursor | both | all")
+        print("unknown target '\(target)'. Use: chatgpt | claude | antigravity | cursor | grok | both | all")
         allOK = false
     }
 }

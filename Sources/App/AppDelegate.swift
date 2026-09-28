@@ -37,6 +37,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         provider: CursorUsageProvider(),
         selectionKey: "selectedLimitName.cursor"
     )
+    @MainActor private lazy var grokStore = UsageStore(
+        provider: GrokUsageProvider(),
+        selectionKey: "selectedLimitName.grok"
+    )
     @MainActor lazy var notificationEngine = UsageNotificationEngine(settings: settings)
     private var settingsWindow: NSWindow?
 
@@ -107,6 +111,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
                 ? limits.flatMap(UsageWindowLookup.cursorApiRemainingPercent(in:))
                 : limits.flatMap(UsageWindowLookup.cursorApiPercent(in:))
             title = HeaderFormatter.cursorTitle(autoLeft: auto, apiLeft: api)
+        } else if primary === grokStore, let store = primary {
+            let limits = store.limits
+            let weekly = settings.showRemaining
+                ? limits.flatMap(UsageWindowLookup.grokWeeklyRemainingPercent(in:))
+                : limits.flatMap(UsageWindowLookup.grokWeeklyPercent(in:))
+            title = HeaderFormatter.grokTitle(weeklyLeft: weekly)
         } else if let store = primary {
             let limits = store.limits
             let session = settings.showRemaining
@@ -138,7 +148,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             chatGPTStore.objectWillChange,
             claudeStore.objectWillChange,
             antigravityStore.objectWillChange,
-            cursorStore.objectWillChange
+            cursorStore.objectWillChange,
+            grokStore.objectWillChange
         )
         .receive(on: DispatchQueue.main)
         .sink { [weak self] in self?.updateStatusTitle() }
@@ -181,6 +192,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             .sink { [weak self] limits in
                 guard let self, let limits else { return }
                 self.notificationEngine.process(providerId: "cursor", providerDisplayName: "Cursor", limits: limits)
+            }
+            .store(in: &cancellables)
+
+        grokStore.$limits
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] limits in
+                guard let self, let limits else { return }
+                self.notificationEngine.process(providerId: "grok", providerDisplayName: "Grok", limits: limits)
             }
             .store(in: &cancellables)
 
@@ -248,7 +267,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         // Claude and Gemini are passed as arguments, not as environment
         // objects: the environment is keyed by type, so extra `UsageStore`s
         // there would silently overwrite ChatGPT's (measured before this fix).
-        let root = LimitsPanel(claude: claudeStore, antigravity: antigravityStore, cursor: cursorStore)
+        let root = LimitsPanel(claude: claudeStore, antigravity: antigravityStore, cursor: cursorStore, grok: grokStore)
             .environmentObject(chatGPTStore)
             .environmentObject(settings)
         panel.contentView = NSHostingView(rootView: root)
@@ -355,6 +374,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         cursorItem.state = settings.cursorEnabled ? .on : .off
         menu.addItem(cursorItem)
 
+        let grokItem = NSMenuItem(title: "Grok", action: #selector(menuToggleGrok), keyEquivalent: "")
+        grokItem.target = self
+        grokItem.state = settings.grokEnabled ? .on : .off
+        menu.addItem(grokItem)
+
         menu.addItem(.separator())
 
         let headerRoot = NSMenuItem(title: "Menu Bar Shows", action: nil, keyEquivalent: "")
@@ -423,6 +447,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         settings.cursorEnabled.toggle()
     }
 
+    @objc private func menuToggleGrok() {
+        settings.grokEnabled.toggle()
+    }
+
     @objc private func menuSetHeaderStyle(_ sender: NSMenuItem) {
         guard let raw = sender.representedObject as? String,
               let style = HeaderStyle(rawValue: raw)
@@ -452,6 +480,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         settings.$cursorEnabled
             .removeDuplicates()
             .sink { [weak self] enabled in self?.apply(cursor: enabled) }
+            .store(in: &cancellables)
+        settings.$grokEnabled
+            .removeDuplicates()
+            .sink { [weak self] enabled in self?.apply(grok: enabled) }
             .store(in: &cancellables)
     }
 
@@ -490,6 +522,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
 
         cursorStore.start()
         Task { await cursorStore.refresh() }
+    }
+
+    private func apply(grok enabled: Bool) {
+        guard enabled else {
+            grokStore.stop()
+            return
+        }
+
+        grokStore.start()
+        Task { await grokStore.refresh() }
     }
 
     // MARK: - Settings Window

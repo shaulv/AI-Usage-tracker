@@ -1,0 +1,8 @@
+{
+  "currentPeriodStart": "2026-09-24T23:14:29.359Z",
+  "nextResetTimestampUtc": "2026-10-01T23:14:29.359Z",
+  "hasAvailableUsage": true,
+  "hasNonZeroIncludedLimit": true,
+  "grokPlanLabel": "Grok Bot Plan",
+  "cursorPlanName": "Pro"
+}

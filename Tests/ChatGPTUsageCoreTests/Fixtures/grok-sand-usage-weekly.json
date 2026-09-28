@@ -1,0 +1,25 @@
+{
+  "currentPeriodStart": "2026-09-24T23:14:29.359Z",
+  "nextResetTimestampUtc": "2026-10-01T23:14:29.359Z",
+  "usagePercent": 11.578285,
+  "hasAvailableUsage": true,
+  "hasNonZeroIncludedLimit": true,
+  "upgradeRecommendation": {
+    "cta": {
+      "label": "Upgrade to Pro+",
+      "url": {
+        "url": "https://cursor.com/api/auth/checkoutDeepControl?tier=pro_plus"
+      }
+    },
+    "supportingText": "Get $500 of Grok Bot usage each week with Pro+",
+    "kind": "upgrade-to-pro-plus-for-more-usage"
+  },
+  "onDemandSettings": {
+    "visible": true,
+    "eligible": true,
+    "dashboardUrl": "https://cursor.com/dashboard/spending?for=google-oauth2%7Cuser_example"
+  },
+  "grokPlanLabel": "Grok Bot Plan",
+  "cursorPlanName": "Pro",
+  "billingBrand": "SAND_BILLING_BRAND_CURSOR"
+}
