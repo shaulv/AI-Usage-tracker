@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		096FFD6C2A48F3C8340FB04A /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A844750E9093BC3604BEC419 /* AppDelegate.swift */; };
+		0C3D32C8BACE70ECCE6B9055 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1E4159E151D44747AED49A57 /* Assets.xcassets */; };
 		233B74B227D572DC1E98EFB1 /* ThresholdColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = D755E13F07D2F8DA06060AB1 /* ThresholdColors.swift */; };
 		27DC60E43010370B49C5D58C /* GrokUsageProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB50D523FE5DD3F01A1A30BF /* GrokUsageProvider.swift */; };
 		2FDBEE0E6ACCF80F4F096C4F /* CodexCredentialsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 753C5A26573B31C6AD19DB35 /* CodexCredentialsTests.swift */; };
@@ -44,6 +45,7 @@
 		CAB11036DCADBCAC86507981 /* AntigravityUsageProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73B92F48D8F4E94A5152F445 /* AntigravityUsageProvider.swift */; };
 		DF41A6FADAC4BB18906B8F7B /* TestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA19472C19D63278A459166B /* TestSupport.swift */; };
 		DF745C3B6D616E63D91BF25D /* ClaudeUsageProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF918AE01C8A831239A56540 /* ClaudeUsageProvider.swift */; };
+		E2D59682CBEFD3FCF04B5ECD /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = B46482DE5AFFAAB86DF35582 /* AppIcon.icns */; };
 		E3FC0F9D21F71C30FE61F112 /* GrokCredentials.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE36C74954A68FC5EFF8641E /* GrokCredentials.swift */; };
 		E5689E868DD5D8DE6041D878 /* UsageStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC406E7AB8A8504C1DB635C8 /* UsageStatus.swift */; };
 		EB592A004080E76E22842143 /* ChatGPTUsageCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7AF66DAAA66534EEF37AB8B5 /* ChatGPTUsageCore.framework */; };
@@ -108,6 +110,7 @@
 		0E2FB871FF02697CA5F8F0E4 /* LimitsPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LimitsPanel.swift; sourceTree = "<group>"; };
 		126F7F7250ACC23332971B2E /* AntigravityQuotaSummary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AntigravityQuotaSummary.swift; sourceTree = "<group>"; };
 		149F8B756379F9A9D5CF94DE /* ChatGPTUsageTracker.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ChatGPTUsageTracker.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		1E4159E151D44747AED49A57 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		317FA02300E30D763B728BEE /* UsageStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageStoreTests.swift; sourceTree = "<group>"; };
 		3C839868D82CBB9BA5CAAA55 /* CursorUsageProviderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CursorUsageProviderTests.swift; sourceTree = "<group>"; };
 		410875FED501EC0543B4F1D5 /* CursorCredentialsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CursorCredentialsTests.swift; sourceTree = "<group>"; };
@@ -130,6 +133,7 @@
 		A5E8964F1E74F3D964945EE9 /* HeaderFormatterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeaderFormatterTests.swift; sourceTree = "<group>"; };
 		A844750E9093BC3604BEC419 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		AE36C74954A68FC5EFF8641E /* GrokCredentials.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GrokCredentials.swift; sourceTree = "<group>"; };
+		B46482DE5AFFAAB86DF35582 /* AppIcon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = AppIcon.icns; sourceTree = "<group>"; };
 		B84465CFB6BEDB829D24A94E /* UsageStatusTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageStatusTracker.swift; sourceTree = "<group>"; };
 		B8AA5CA63687603426025A6E /* ChatGPTUsageProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatGPTUsageProvider.swift; sourceTree = "<group>"; };
 		BC406E7AB8A8504C1DB635C8 /* UsageStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageStatus.swift; sourceTree = "<group>"; };
@@ -246,6 +250,15 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		B89FF30FD3A640F27C8A70E9 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				B46482DE5AFFAAB86DF35582 /* AppIcon.icns */,
+				1E4159E151D44747AED49A57 /* Assets.xcassets */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
 		CF3FFF331ABB61F1E692A3F8 /* App */ = {
 			isa = PBXGroup;
 			children = (
@@ -253,6 +266,7 @@
 				8003BB44FE7EF68095ADB6E4 /* AppSettings.swift */,
 				98788F41FE7F1DC7E8B065BA /* ChatGPTUsageTrackerApp.swift */,
 				5BA56723FCDBCCE09DC70018 /* NotificationEngine.swift */,
+				B89FF30FD3A640F27C8A70E9 /* Resources */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -305,6 +319,7 @@
 			buildConfigurationList = F700F753F1DD4A32853AB567 /* Build configuration list for PBXNativeTarget "ChatGPTUsageTracker" */;
 			buildPhases = (
 				0285F4CBDD3D0CC548FD1740 /* Sources */,
+				550093597642EB2C0E7856E5 /* Resources */,
 				F56D1B370382FDBF885A395A /* Frameworks */,
 				456F4CFA1B0CA92DC93497AA /* Embed Frameworks */,
 			);
@@ -371,6 +386,18 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		550093597642EB2C0E7856E5 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E2D59682CBEFD3FCF04B5ECD /* AppIcon.icns in Resources */,
+				0C3D32C8BACE70ECCE6B9055 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		0285F4CBDD3D0CC548FD1740 /* Sources */ = {
@@ -468,6 +495,7 @@
 				FRAMEWORK_SEARCH_PATHS = "$(inherited) $(BUILT_PRODUCTS_DIR)";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "AI Usage tracker";
+				INFOPLIST_KEY_CFBundleIconFile = AppIcon;
 				INFOPLIST_KEY_LSUIElement = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -518,6 +546,7 @@
 				FRAMEWORK_SEARCH_PATHS = "$(inherited) $(BUILT_PRODUCTS_DIR)";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "AI Usage tracker";
+				INFOPLIST_KEY_CFBundleIconFile = AppIcon;
 				INFOPLIST_KEY_LSUIElement = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
