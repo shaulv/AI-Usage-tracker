@@ -19,20 +19,20 @@ echo "== counts =="
 # .build/ is build output, never source: prune it everywhere or a stale
 # derived file makes every count a lie.
 check "swift files"        43 "$(find . -path './.build' -prune -o -name '*.swift' -print | wc -l | tr -d ' ')"
-check "test functions"     148 "$(grep -rhoE 'func test_' Tests | wc -l | tr -d ' ')"
+check "test functions"     151 "$(grep -rhoE 'func test_' Tests | wc -l | tr -d ' ')"
 check "provider tests"     17 "$(grep -cE 'func test_' Tests/ChatGPTUsageCoreTests/ChatGPTUsageProviderTests.swift | tr -d ' ')"
 check "credentials tests"  15 "$(grep -cE 'func test_' Tests/ChatGPTUsageCoreTests/CodexCredentialsTests.swift | tr -d ' ')"
 check "store tests"        12 "$(grep -cE 'func test_' Tests/ChatGPTUsageCoreTests/UsageStoreTests.swift | tr -d ' ')"
 check "claude tests"       19 "$(grep -cE 'func test_' Tests/ChatGPTUsageCoreTests/ClaudeUsageProviderTests.swift | tr -d ' ')"
 check "header tests"       14 "$(grep -cE 'func test_' Tests/ChatGPTUsageCoreTests/HeaderFormatterTests.swift | tr -d ' ')"
-check "antigravity provider tests" 13 "$(grep -cE 'func test_' Tests/ChatGPTUsageCoreTests/AntigravityUsageProviderTests.swift | tr -d ' ')"
+check "antigravity provider tests" 16 "$(grep -cE 'func test_' Tests/ChatGPTUsageCoreTests/AntigravityUsageProviderTests.swift | tr -d ' ')"
 check "antigravity session tests"   6 "$(grep -cE 'func test_' Tests/ChatGPTUsageCoreTests/AntigravitySessionTests.swift | tr -d ' ')"
 check "cursor credentials tests"    6 "$(grep -cE 'func test_' Tests/ChatGPTUsageCoreTests/CursorCredentialsTests.swift | tr -d ' ')"
 check "cursor provider tests"      14 "$(grep -cE 'func test_' Tests/ChatGPTUsageCoreTests/CursorUsageProviderTests.swift | tr -d ' ')"
 check "grok provider tests"        12 "$(grep -cE 'func test_' Tests/ChatGPTUsageCoreTests/GrokUsageProviderTests.swift | tr -d ' ')"
 check "grok credentials tests"      7 "$(grep -cE 'func test_' Tests/ChatGPTUsageCoreTests/GrokCredentialsTests.swift | tr -d ' ')"
 check "status engine tests"        13 "$(grep -cE 'func test_' Tests/ChatGPTUsageCoreTests/UsageStatusEngineTests.swift | tr -d ' ')"
-check "json fixtures"      24 "$(ls Tests/ChatGPTUsageCoreTests/Fixtures/*.json | wc -l | tr -d ' ')"
+check "json fixtures"      25 "$(ls Tests/ChatGPTUsageCoreTests/Fixtures/*.json | wc -l | tr -d ' ')"
 check "html fixtures"       2 "$(ls Tests/ChatGPTUsageCoreTests/Fixtures/*.html | wc -l | tr -d ' ')"
 
 echo

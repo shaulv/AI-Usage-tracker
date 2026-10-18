@@ -23,9 +23,12 @@ import Foundation
 /// - `resetTime` is ISO 8601 UTC. A bucket can legitimately omit
 ///   `remainingFraction` (the per-model listing does exactly that for models
 ///   with no metered limit), and such a bucket is not a row.
-/// - Groups are named ("Gemini Models", "Claude and GPT models") and their
-///   bucket ids are prefixed (`gemini-*`, `3p-*`), so pool identity has two
-///   independent signals.
+/// - Groups are named ("Gemini Models", "Claude and GPT models",
+///   "Gemini 4 Argon") and their bucket ids are prefixed (`gemini-*`,
+///   `3p-*`, `gemini-argon-*`), so pool identity has two independent signals.
+/// - Argon is a separate weekly-only pool. Its bucket ids still start with
+///   `gemini-` (for example `gemini-argon-wtu-weekly`), so Argon must be
+///   classified before the Gemini prefix check or it overwrites Gemini Weekly.
 public struct AntigravityQuotaSummary: Decodable {
     public struct Bucket: Decodable {
         public let bucketId: String?
@@ -60,17 +63,16 @@ public struct AntigravityQuotaSummary: Decodable {
     }
 }
 
-/// Maps the summary's groups and buckets to the four fixed rows the panel and
-/// the menu bar already look for: `Gemini Session`, `Gemini Weekly`,
-/// `Third-party Session`, `Third-party Weekly`.
+/// Maps the summary's groups and buckets to the rows the panel and the menu
+/// bar look for: `Gemini Session`, `Gemini Weekly`, `Third-party Session`,
+/// `Third-party Weekly`, and when present `Argon Weekly`.
 ///
-/// Two pools x two windows is the account's own model of the quotas, stated in
-/// the response's own words ("Within each group, models share a weekly limit and
-/// a 5-hour limit"), so the rows are a translation, not an invention. A pool or
-/// window the server did not report produces no row, because an absent window
-/// must never render as a zero.
+/// Shared Gemini and third-party pools each expose session + weekly windows.
+/// Argon is a separate weekly-only pool (no Argon Session row is invented). A
+/// pool or window the server did not report produces no row, because an absent
+/// window must never render as a zero.
 public extension AntigravityQuotaSummary {
-    enum Pool { case gemini, thirdParty }
+    enum Pool { case gemini, thirdParty, argon }
     enum Window { case session, weekly }
 
     func toUsageLimits(now: Date = Date()) -> [UsageLimit] {
@@ -99,21 +101,30 @@ public extension AntigravityQuotaSummary {
         append(.gemini, .weekly, "Gemini Weekly")
         append(.thirdParty, .session, "Third-party Session")
         append(.thirdParty, .weekly, "Third-party Weekly")
+        append(.argon, .weekly, "Argon Weekly")
 
         // Same invariant as the ChatGPT and Claude mappers: names are row
         // identity, so duplicates are resolved in exactly one place.
         return UsageLimit.uniqued(limits)
     }
 
-    /// Pool identity by the bucket id prefix first (`gemini-`, `3p-`), then by
-    /// the group's own display name. Defaulting to third-party is deliberate:
-    /// only a Gemini-prefixed or Gemini-named bucket earns the Gemini rows.
+    /// Pool identity. Argon is checked first because its bucket ids still start
+    /// with `gemini-` (`gemini-argon-wtu-weekly`); classifying Gemini by that
+    /// prefix alone would merge Argon into Gemini Weekly. Then Gemini
+    /// (`gemini-` / group name), then third-party (`3p-`). Defaulting to
+    /// third-party is deliberate: only an explicit Gemini signal earns Gemini
+    /// rows.
     static func pool(for bucket: Bucket, group: Group) -> Pool {
         let bucketId = (bucket.bucketId ?? "").lowercased()
-        if bucketId.hasPrefix("gemini") { return .gemini }
-        if bucketId.hasPrefix("3p") { return .thirdParty }
         let groupName = (group.displayName ?? "").lowercased()
-        return groupName.contains("gemini") ? .gemini : .thirdParty
+        if bucketId.contains("argon") || groupName.contains("argon") {
+            return .argon
+        }
+        if bucketId.hasPrefix("gemini") || groupName.contains("gemini") {
+            return .gemini
+        }
+        if bucketId.hasPrefix("3p") { return .thirdParty }
+        return .thirdParty
     }
 
     /// Window from the bucket's own `window` field. The reset-delta fallback

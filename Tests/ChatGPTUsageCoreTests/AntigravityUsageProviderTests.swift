@@ -49,6 +49,60 @@ final class AntigravityUsageProviderTests: XCTestCase {
         XCTAssertEqual(limits.first?.usedPercentRounded, 60)
     }
 
+    func test_argonWeekly_doesNotReplaceGeminiWeekly() throws {
+        let data = try Fixture.data(named: "antigravity-quota-with-argon.json")
+        let limits = try AntigravityUsageMapper.limits(from: data)
+        XCTAssertEqual(limits.map(\.name), [
+            "Gemini Session", "Gemini Weekly", "Third-party Session", "Third-party Weekly",
+            "Argon Weekly",
+        ])
+        // Gemini weekly remaining 0.80 -> 20% used; Argon remaining 0.10 -> 90% used.
+        // If Argon collapses into Gemini Weekly, Gemini Weekly would wrongly show 90.
+        XCTAssertEqual(limits.first { $0.name == "Gemini Weekly" }?.usedPercentRounded, 20)
+        XCTAssertEqual(limits.first { $0.name == "Argon Weekly" }?.usedPercentRounded, 90)
+        XCTAssertEqual(limits.first { $0.name == "Gemini Session" }?.usedPercentRounded, 10)
+        XCTAssertNil(limits.first { $0.name == "Argon Session" })
+    }
+
+    func test_pool_classifiesArgonBeforeGeminiPrefix() {
+        let argonBucket = AntigravityQuotaSummary.Bucket(
+            bucketId: "gemini-argon-wtu-weekly",
+            displayName: "Weekly Limit Remaining",
+            window: "weekly",
+            remainingFraction: 0.1,
+            resetTime: "2026-10-01T08:00:00Z"
+        )
+        let argonGroup = AntigravityQuotaSummary.Group(
+            displayName: "Gemini 4 Argon",
+            description: nil,
+            buckets: [argonBucket]
+        )
+        XCTAssertEqual(
+            AntigravityQuotaSummary.pool(for: argonBucket, group: argonGroup),
+            .argon
+        )
+
+        // Bucket id alone must classify as Argon even inside a Gemini-named group.
+        let geminiGroup = AntigravityQuotaSummary.Group(
+            displayName: "Gemini Models",
+            description: nil,
+            buckets: [argonBucket]
+        )
+        XCTAssertEqual(
+            AntigravityQuotaSummary.pool(for: argonBucket, group: geminiGroup),
+            .argon
+        )
+    }
+
+    func test_argonAbsent_emitsNoArgonRow() throws {
+        let data = try Fixture.data(named: "antigravity-quota-summary.json")
+        let limits = try AntigravityUsageMapper.limits(from: data)
+        XCTAssertEqual(limits.map(\.name), [
+            "Gemini Session", "Gemini Weekly", "Third-party Session", "Third-party Weekly",
+        ])
+        XCTAssertNil(limits.first { $0.name == "Argon Weekly" })
+    }
+
     func test_unrecognizedPayload_throwsFetchFailed() {
         let data = Data(#"{"unexpected":"shape"}"#.utf8)
         XCTAssertThrowsError(try AntigravityUsageMapper.limits(from: data)) { error in

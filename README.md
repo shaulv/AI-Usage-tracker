@@ -19,7 +19,7 @@ Your first job, in order:
 
 1. `swift build` and fix whatever the compiler finds. Expect small syntax
    errors, not design problems.
-2. `swift test`. 148 tests pass. They cover the core framework only.
+2. `swift test`. 151 tests pass. They cover the core framework only.
 3. Run the `curl` probe below against the real account. Until that returns
    `HTTP 200` with a `used_percent`, nothing else is worth doing.
 4. `xcodegen generate`, open the project, run the app, and look at the panel.
@@ -137,9 +137,11 @@ RetrieveUserQuotaSummary` over loopback HTTPS, trusting the server's self-signed
 certificate only for `127.0.0.1`/`localhost`/`::1`. `AntigravityUsageProvider`
 mirrors the same shape as the ChatGPT and Claude sides: same protocol, same
 injected transport, same never-stale rule, read-only, never refreshing
-anything. The response's `groups[].buckets[]` merge into four fixed rows:
-`Gemini Session`, `Gemini Weekly`, `Third-party Session`, `Third-party Weekly`
-(worst remaining fraction wins each pool). If the server is not running the
+anything. The response's `groups[].buckets[]` merge into pool rows:
+`Gemini Session`, `Gemini Weekly`, `Third-party Session`, `Third-party Weekly`,
+and when present `Argon Weekly` (Argon is a separate weekly-only pool; its
+bucket ids still start with `gemini-`, so it is classified before the Gemini
+prefix). Worst remaining fraction wins within each pool. If the server is not running the
 panel says "Antigravity IDE is not running - open it to read Gemini usage"; a
 `401`/`403` from the server says "Antigravity rejected the local session - restart Antigravity IDE" (the OAuth refresh needs a client secret the app must never hold, so a 401 is not retried), and any other server failure says "Could not reach the Antigravity language server".
 
@@ -380,13 +382,13 @@ Tests/ChatGPTUsageCoreTests/
     CodexCredentialsTests.swift        15 tests
     UsageStoreTests.swift              12 tests (incl. burst cadence)
     ClaudeUsageProviderTests.swift     19 tests
-    AntigravityUsageProviderTests.swift 13 tests
+    AntigravityUsageProviderTests.swift 16 tests
     AntigravitySessionTests.swift       6 tests
     HeaderFormatterTests.swift         14 tests
     CursorUsageProviderTests.swift     14 tests
     CursorCredentialsTests.swift        6 tests
     UsageStatusEngineTests.swift       13 tests
-    Fixtures/                          24 JSON payloads plus two HTML fixtures
+    Fixtures/                          25 JSON payloads plus two HTML fixtures
 ```
 
 ---
@@ -617,7 +619,7 @@ The menu bar shows `--%` whenever there is nothing honest to display.
 
 ## Tests
 
-148 tests, all in the core framework, none of them touching the network or the
+151 tests, all in the core framework, none of them touching the network or the
 real home directory. Transport and credentials source are both injected.
 
 | File | Count | Covers |
@@ -627,7 +629,7 @@ real home directory. Transport and credentials source are both injected.
 | `UsageStoreTests.swift` | 11 | success publishes, **failure discards the previous numbers**, menu bar label follows the selection, a saved selection that no longer exists falls back to the first row, empty result stays `ok` with `--%`, the 60 second floor, both legs of the burst cadence, movement opens a burst, failure clears the movement baseline, and selection persistence |
 | `ClaudeUsageProviderTests.swift` | 19 | fixture mapping (session/weekly/model rows, RFC 3339 resets, null buckets = real empty, clamping, the `isCloudflareChallenge` helper tested on the header branch and both body markers), unrecognized payload and HTML-with-200 are fetch failures, exact cookie/UA request shape with no Authorization header, the local expiry gate proving zero network calls, a Cloudflare 403 that is distinguished from a session-lapse 403, the 500 path, transport failure, PBKDF2 recipe parity with the live probe, decrypt-shape refusals, and Chromium tick-to-date conversion |
 | `HeaderFormatterTests.swift` | 14 | header strings, missing windows, derived-name lookup, Gemini prefixed lookup that never steals the ChatGPT rows, Cursor `C..% A..%` pair with `--` on a missing side, and Cursor monthly lookup that resolves `(not included)` rows to nil |
-| `AntigravityUsageProviderTests.swift` | 13 | four fixed rows, worst-fraction pool merge, verbatim unknown models, expiry gate with zero network calls, 401/500 paths, exact Bearer POST shape |
+| `AntigravityUsageProviderTests.swift` | 16 | Gemini and third-party rows, Argon Weekly when present without overwriting Gemini Weekly, worst-fraction pool merge, expiry gate with zero network calls, 401/500 paths, exact CSRF POST shape |
 | `AntigravitySessionTests.swift` | 6 | language-server discovery, CSRF token load, missing server, malformed session, unknown expiry, expired session |
 | `GrokUsageProviderTests.swift` | 12 | weekly payload mapping, exact request shape and checksum, honest empty, failure paths |
 | `CursorUsageProviderTests.swift` | 14 | basic payload mapping to two monthly rows with a shared millis-string reset, exact Connect RPC request shape, Start-plan payload without the API pool still rendering both rows, clamping 140.7 to 100 and -8 to 0, unrecognized payload and HTML-with-200 as fetch failures, missing and expired credentials with zero network calls, 401/403/500 paths, transport failure, and reset-date edge cases |
@@ -649,7 +651,7 @@ not the test.**
    changed" distinguishable from "this account has no limits". Collapse those
    two and a server-side break will read as an empty account forever.
 
-Fixtures: 24 JSON files plus two HTML fixtures, all with faked identifiers.
+Fixtures: 25 JSON files plus two HTML fixtures, all with faked identifiers.
 `Fixture.data(named:)` finds them under `swift test` via `Bundle.module`, under
 Xcode via `Bundle(for: TestBundleAnchor.self)`, and as a last resort on disk
 relative to `#filePath`. If you add a fixture, add it to all three assumptions
@@ -678,7 +680,7 @@ What was actually checked on the machine where this was written, and how:
 
 | Checked | How |
 |---|---|
-| All 24 JSON fixtures parse | `jq -e .` on each |
+| All 25 JSON fixtures parse | `jq -e .` on each |
 | Epoch-second claims in fixtures and tests | recomputed: `1785024392` is `2026-07-26T00:06:32Z`, `1785040089` is `2026-07-26T04:28:09Z`, `1785024392 - 589104` is `2026-07-19T04:28:08Z` |
 | The three base64url JWT payloads in the tests | re-encoded from the literal JSON, byte for byte |
 | Threshold color contrast | WCAG relative luminance against `#FFFFFF` and `#1C1C1E`; all six at or above 4.5:1 |
@@ -693,7 +695,7 @@ What was not checked anywhere, and needs a Mac:
 | Not checked | Needs |
 |---|---|
 | That the Swift compiles | `swift build` (verified: passes) |
-| That the tests pass | `swift test` (verified: 148/148) and `xcodebuild test` |
+| That the tests pass | `swift test` (verified: 151/151) and `xcodebuild test` |
 | That the Grok endpoint responds for a real account | `swift run usage-probe grok` (verified: HTTP 200, `Weekly: 12%`, live on 29/09/2026) |
 | That the endpoint responds for a real account | `curl` / `tools/probe-chatgpt-payload.py` for ChatGPT (200 live); `tools/probe-claude-cookies.py` and `swift run usage-probe` for Claude — `/api/organizations/{org}/usage` returns 200 live (this account, free plan, empty/null buckets), while the bare `claude.ai/` root returns 403 |
 | That the panel renders and the menu bar updates | running the app |
