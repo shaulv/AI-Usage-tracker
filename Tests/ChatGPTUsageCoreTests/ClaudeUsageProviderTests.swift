@@ -50,6 +50,50 @@ final class ClaudeUsageProviderTests: XCTestCase {
         XCTAssertEqual(limits.first { $0.name == "Session (5h)" }?.usedFraction, 0.0)
     }
 
+    func test_parseReset_handlesMicrosecondsAndOffsets() {
+        let date = ClaudeUsageResponse.parseReset("2026-04-11T07:00:00.528743+00:00")
+        XCTAssertNotNil(date, "Microsecond timestamps must parse successfully")
+    }
+
+    func test_parseReset_handlesMillisecondsAndUTCZ() {
+        let date = ClaudeUsageResponse.parseReset("2026-04-11T07:00:00.528Z")
+        XCTAssertNotNil(date, "Millisecond timestamps must parse successfully")
+    }
+
+    func test_parseReset_preservesStandardRFC3339() {
+        let date = ClaudeUsageResponse.parseReset("2026-04-08T18:59:59Z")
+        XCTAssertNotNil(date, "Standard RFC 3339 without fractions must continue to parse")
+    }
+
+    func test_parseReset_handlesNumericEpochSeconds() {
+        let date = ClaudeUsageResponse.parseReset("1775890800")
+        XCTAssertNotNil(date, "Epoch seconds string must parse into Date")
+    }
+
+    func test_mappedPayload_withFractionalTimestamps_populatesResetsAt() throws {
+        let json = """
+        {
+          "five_hour": { "utilization": 99.0, "resets_at": "2026-04-11T07:00:00.528743+00:00" },
+          "seven_day": { "utilization": 100.0, "resets_at": "2026-04-17T00:59:59.951713+00:00" }
+        }
+        """
+        let limits = try ClaudeUsageMapper.limits(from: Data(json.utf8))
+        XCTAssertEqual(limits.count, 2)
+        XCTAssertNotNil(limits.first?.resetsAt, "Session limit must have a valid non-nil reset date")
+        XCTAssertNotNil(limits.last?.resetsAt, "Weekly limit must have a valid non-nil reset date")
+    }
+
+    func test_bucketDecodes_fromNumericResetsAt() throws {
+        let json = """
+        {
+          "five_hour": { "utilization": 50.0, "resets_at": 1775890800 }
+        }
+        """
+        let limits = try ClaudeUsageMapper.limits(from: Data(json.utf8))
+        XCTAssertEqual(limits.count, 1)
+        XCTAssertNotNil(limits.first?.resetsAt, "Numeric resets_at should decode and parse into Date")
+    }
+
     // MARK: - Provider behavior (injected transport + session stub)
 
     private func makeProvider(

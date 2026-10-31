@@ -19,11 +19,11 @@ echo "== counts =="
 # .build/ is build output, never source: prune it everywhere or a stale
 # derived file makes every count a lie.
 check "swift files"        43 "$(find . -path './.build' -prune -o -name '*.swift' -print | wc -l | tr -d ' ')"
-check "test functions"     151 "$(grep -rhoE 'func test_' Tests | wc -l | tr -d ' ')"
+check "test functions"     157 "$(grep -rhoE 'func test_' Tests | wc -l | tr -d ' ')"
 check "provider tests"     17 "$(grep -cE 'func test_' Tests/ChatGPTUsageCoreTests/ChatGPTUsageProviderTests.swift | tr -d ' ')"
 check "credentials tests"  15 "$(grep -cE 'func test_' Tests/ChatGPTUsageCoreTests/CodexCredentialsTests.swift | tr -d ' ')"
 check "store tests"        12 "$(grep -cE 'func test_' Tests/ChatGPTUsageCoreTests/UsageStoreTests.swift | tr -d ' ')"
-check "claude tests"       19 "$(grep -cE 'func test_' Tests/ChatGPTUsageCoreTests/ClaudeUsageProviderTests.swift | tr -d ' ')"
+check "claude tests"       25 "$(grep -cE 'func test_' Tests/ChatGPTUsageCoreTests/ClaudeUsageProviderTests.swift | tr -d ' ')"
 check "header tests"       14 "$(grep -cE 'func test_' Tests/ChatGPTUsageCoreTests/HeaderFormatterTests.swift | tr -d ' ')"
 check "antigravity provider tests" 16 "$(grep -cE 'func test_' Tests/ChatGPTUsageCoreTests/AntigravityUsageProviderTests.swift | tr -d ' ')"
 check "antigravity session tests"   6 "$(grep -cE 'func test_' Tests/ChatGPTUsageCoreTests/AntigravitySessionTests.swift | tr -d ' ')"

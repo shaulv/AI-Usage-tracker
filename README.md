@@ -19,7 +19,7 @@ Your first job, in order:
 
 1. `swift build` and fix whatever the compiler finds. Expect small syntax
    errors, not design problems.
-2. `swift test`. 151 tests pass. They cover the core framework only.
+2. `swift test`. 157 tests pass. They cover the core framework only.
 3. Run the `curl` probe below against the real account. Until that returns
    `HTTP 200` with a `used_percent`, nothing else is worth doing.
 4. `xcodegen generate`, open the project, run the app, and look at the panel.
@@ -619,7 +619,7 @@ The menu bar shows `--%` whenever there is nothing honest to display.
 
 ## Tests
 
-151 tests, all in the core framework, none of them touching the network or the
+157 tests, all in the core framework, none of them touching the network or the
 real home directory. Transport and credentials source are both injected.
 
 | File | Count | Covers |
@@ -695,7 +695,7 @@ What was not checked anywhere, and needs a Mac:
 | Not checked | Needs |
 |---|---|
 | That the Swift compiles | `swift build` (verified: passes) |
-| That the tests pass | `swift test` (verified: 151/151) and `xcodebuild test` |
+| That the tests pass | `swift test` (verified: 157/157) and `xcodebuild test` |
 | That the Grok endpoint responds for a real account | `swift run usage-probe grok` (verified: HTTP 200, `Weekly: 12%`, live on 29/09/2026) |
 | That the endpoint responds for a real account | `curl` / `tools/probe-chatgpt-payload.py` for ChatGPT (200 live); `tools/probe-claude-cookies.py` and `swift run usage-probe` for Claude — `/api/organizations/{org}/usage` returns 200 live (this account, free plan, empty/null buckets), while the bare `claude.ai/` root returns 403 |
 | That the panel renders and the menu bar updates | running the app |

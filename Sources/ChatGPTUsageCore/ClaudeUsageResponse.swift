@@ -22,6 +22,23 @@ public struct ClaudeUsageResponse: Decodable {
             case utilization
             case resetsAt = "resets_at"
         }
+
+        public init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            utilization = try container.decodeIfPresent(Double.self, forKey: .utilization)
+            if let stringValue = try? container.decodeIfPresent(String.self, forKey: .resetsAt) {
+                resetsAt = stringValue
+            } else if let numValue = try? container.decodeIfPresent(Double.self, forKey: .resetsAt) {
+                resetsAt = String(numValue)
+            } else {
+                resetsAt = nil
+            }
+        }
+
+        public init(utilization: Double?, resetsAt: String?) {
+            self.utilization = utilization
+            self.resetsAt = resetsAt
+        }
     }
 
     public struct ExtraUsage: Decodable {
@@ -118,12 +135,32 @@ public struct ClaudeUsageResponse: Decodable {
         return UsageLimit.uniqued(limits)
     }
 
-    /// RFC 3339 UTC, fixed format so a locale cannot reinterpret the timestamp.
-    static func parseReset(_ text: String?) -> Date? {
+    /// RFC 3339 / ISO 8601 UTC parser supporting both fractional seconds
+    /// (.528743+00:00 / .000Z) and standard format (18:59:59Z), plus epoch timestamps.
+    public static func parseReset(_ text: String?) -> Date? {
         guard let text, !text.isEmpty else { return nil }
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter.date(from: text)
+
+        // 1. Anthropic live format: ISO 8601 with fractional seconds and offset/Z
+        let fractionalFormatter = ISO8601DateFormatter()
+        fractionalFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = fractionalFormatter.date(from: text) {
+            return date
+        }
+
+        // 2. Standard RFC 3339 without fractional seconds
+        let standardFormatter = ISO8601DateFormatter()
+        standardFormatter.formatOptions = [.withInternetDateTime]
+        if let date = standardFormatter.date(from: text) {
+            return date
+        }
+
+        // 3. Fallback: Unix epoch seconds or milliseconds
+        if let epoch = Double(text), epoch > 1_000_000_000 {
+            let seconds = epoch > 1_000_000_000_000 ? epoch / 1000.0 : epoch
+            return Date(timeIntervalSince1970: seconds)
+        }
+
+        return nil
     }
 }
 
