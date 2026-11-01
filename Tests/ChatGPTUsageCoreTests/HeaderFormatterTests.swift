@@ -119,4 +119,22 @@ extension HeaderFormatterTests {
         XCTAssertNil(UsageWindowLookup.cursorAutoPercent(in: []))
         XCTAssertNil(UsageWindowLookup.cursorApiPercent(in: []))
     }
+
+    func test_headerProvider_displayNamesAndRawValues() {
+        XCTAssertEqual(HeaderProvider.auto.displayName, "Automatic (First Active)")
+        XCTAssertEqual(HeaderProvider.chatGPT.displayName, "ChatGPT")
+        XCTAssertEqual(HeaderProvider.claude.displayName, "Claude")
+        XCTAssertEqual(HeaderProvider.gemini.displayName, "Gemini")
+        XCTAssertEqual(HeaderProvider.cursor.displayName, "Cursor")
+        XCTAssertEqual(HeaderProvider.grok.displayName, "Grok")
+        XCTAssertEqual(HeaderProvider.allCases.count, 6)
+    }
+
+    func test_headerProvider_codableRoundTrip() throws {
+        for provider in HeaderProvider.allCases {
+            let data = try JSONEncoder().encode(provider)
+            let decoded = try JSONDecoder().decode(HeaderProvider.self, from: data)
+            XCTAssertEqual(decoded, provider)
+        }
+    }
 }

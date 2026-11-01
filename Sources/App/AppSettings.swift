@@ -35,6 +35,10 @@ final class AppSettings: ObservableObject {
     @Published var headerStyle: HeaderStyle {
         didSet { defaults.set(headerStyle.rawValue, forKey: "headerStyle") }
     }
+    /// Which AI model/provider appears in the menu bar header: specific provider or automatic.
+    @Published var headerProvider: HeaderProvider {
+        didSet { defaults.set(headerProvider.rawValue, forKey: "headerProvider") }
+    }
     /// Whether the menu bar and the panel report how much is LEFT (100 - used)
     /// rather than how much is used. Defaults on: the remaining count is the one
     /// that drives behavior, so it is the more useful glance.
@@ -95,6 +99,8 @@ final class AppSettings: ObservableObject {
         self.grokEnabled = defaults.object(forKey: "grokEnabled") as? Bool ?? true
         let rawStyle = defaults.string(forKey: "headerStyle") ?? ""
         self.headerStyle = HeaderStyle(rawValue: rawStyle) ?? .sessionWeekly
+        let rawProvider = defaults.string(forKey: "headerProvider") ?? ""
+        self.headerProvider = HeaderProvider(rawValue: rawProvider) ?? .auto
         self.showRemaining = defaults.object(forKey: "showRemaining") as? Bool ?? true
 
         let savedWarn = defaults.object(forKey: "warningRemainingThreshold") as? Int

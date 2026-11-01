@@ -263,6 +263,11 @@ struct LimitsPanel: View {
     private func selectButton<Label: View>(_ row: ProviderRow, @ViewBuilder label: () -> Label) -> some View {
         Button {
             row.store.selectedLimitName = row.limit.name
+            if let matchingProvider = HeaderProvider.allCases.first(where: {
+                $0.displayName.caseInsensitiveCompare(row.providerName) == .orderedSame
+            }) {
+                settings.headerProvider = matchingProvider
+            }
         } label: {
             label()
         }

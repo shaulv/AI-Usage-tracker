@@ -12,12 +12,32 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 20) {
             header
             Divider()
+            headerModelSection
+            Divider()
             thresholdsSection
             Divider()
             notificationsSection
         }
         .padding(20)
         .frame(width: 440)
+    }
+
+    private var headerModelSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Top Menu Bar Header")
+                .font(.subheadline.weight(.semibold))
+
+            Picker("Display Model", selection: $settings.headerProvider) {
+                ForEach(HeaderProvider.allCases, id: \.self) { provider in
+                    Text(provider.displayName).tag(provider)
+                }
+            }
+            .pickerStyle(.menu)
+
+            Text("Select which AI model's usage percentages appear in the macOS menu bar.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
     }
 
     private var header: some View {

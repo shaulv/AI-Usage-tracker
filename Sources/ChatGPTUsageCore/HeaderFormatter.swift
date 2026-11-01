@@ -19,6 +19,28 @@ public enum HeaderStyle: String, CaseIterable, Codable {
     }
 }
 
+/// Which AI model/provider appears in the menu bar header. Chosen by the user
+/// from the right-click settings menu or Preferences window and persisted across launches.
+public enum HeaderProvider: String, CaseIterable, Codable {
+    case auto = "auto"
+    case chatGPT = "chatgpt"
+    case claude = "claude"
+    case gemini = "gemini"
+    case cursor = "cursor"
+    case grok = "grok"
+
+    public var displayName: String {
+        switch self {
+        case .auto: return "Automatic (First Active)"
+        case .chatGPT: return "ChatGPT"
+        case .claude: return "Claude"
+        case .gemini: return "Gemini"
+        case .cursor: return "Cursor"
+        case .grok: return "Grok"
+        }
+    }
+}
+
 /// Pure string formatting for the menu bar. Lives in core so the exact bytes
 /// the user sees are unit-tested without an NSStatusItem on the machine.
 public enum HeaderFormatter {

@@ -85,56 +85,83 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         updateStatusTitle()
     }
 
-    /// Title recomputes from whichever provider is enabled: ChatGPT first,
-    /// Claude when ChatGPT is off, Cursor next, Gemini last, honest dashes
-    /// when no provider has data.
-    private func updateStatusTitle() {
-        let primary: UsageStore?
-        if settings.chatGPTEnabled {
-            primary = chatGPTStore
-        } else if settings.claudeEnabled {
-            primary = claudeStore
-        } else if settings.cursorEnabled {
-            primary = cursorStore
-        } else if settings.antigravityEnabled {
-            primary = antigravityStore
-        } else {
-            primary = nil
+    /// Determines which provider and store should drive the top menu bar header.
+    private var activeHeaderStore: (provider: HeaderProvider, store: UsageStore)? {
+        switch settings.headerProvider {
+        case .chatGPT:
+            return settings.chatGPTEnabled ? (.chatGPT, chatGPTStore) : nil
+        case .claude:
+            return settings.claudeEnabled ? (.claude, claudeStore) : nil
+        case .gemini:
+            return settings.antigravityEnabled ? (.gemini, antigravityStore) : nil
+        case .cursor:
+            return settings.cursorEnabled ? (.cursor, cursorStore) : nil
+        case .grok:
+            return settings.grokEnabled ? (.grok, grokStore) : nil
+        case .auto:
+            if settings.chatGPTEnabled { return (.chatGPT, chatGPTStore) }
+            if settings.claudeEnabled { return (.claude, claudeStore) }
+            if settings.antigravityEnabled { return (.gemini, antigravityStore) }
+            if settings.cursorEnabled { return (.cursor, cursorStore) }
+            if settings.grokEnabled { return (.grok, grokStore) }
+            return nil
         }
+    }
+
+    /// Title recomputes from the user's chosen headerProvider (or auto fallback):
+    /// Cursor uses monthly Auto+API format, Grok uses weekly format, Gemini uses
+    /// prefixed lookups, and ChatGPT/Claude use session+weekly.
+    private func updateStatusTitle() {
+        guard let active = activeHeaderStore else {
+            statusItem.button?.title = HeaderFormatter.title(
+                style: settings.headerStyle,
+                sessionPercent: nil,
+                weeklyPercent: nil
+            )
+            return
+        }
+
         let title: String
-        if primary === cursorStore, let store = primary {
-            let limits = store.limits
-            let auto = settings.showRemaining
+        let limits = active.store.limits
+        let remaining = settings.showRemaining
+
+        switch active.provider {
+        case .cursor:
+            let auto = remaining
                 ? limits.flatMap(UsageWindowLookup.cursorAutoRemainingPercent(in:))
                 : limits.flatMap(UsageWindowLookup.cursorAutoPercent(in:))
-            let api = settings.showRemaining
+            let api = remaining
                 ? limits.flatMap(UsageWindowLookup.cursorApiRemainingPercent(in:))
                 : limits.flatMap(UsageWindowLookup.cursorApiPercent(in:))
             title = HeaderFormatter.cursorTitle(autoLeft: auto, apiLeft: api)
-        } else if primary === grokStore, let store = primary {
-            let limits = store.limits
-            let weekly = settings.showRemaining
+        case .grok:
+            let weekly = remaining
                 ? limits.flatMap(UsageWindowLookup.grokWeeklyRemainingPercent(in:))
                 : limits.flatMap(UsageWindowLookup.grokWeeklyPercent(in:))
             title = HeaderFormatter.grokTitle(weeklyLeft: weekly)
-        } else if let store = primary {
-            let limits = store.limits
-            let session = settings.showRemaining
+        case .gemini:
+            let session = remaining
+                ? limits.flatMap(UsageWindowLookup.geminiSessionRemainingPercent(in:))
+                : limits.flatMap(UsageWindowLookup.geminiSessionPercent(in:))
+            let weekly = remaining
+                ? limits.flatMap(UsageWindowLookup.geminiWeeklyRemainingPercent(in:))
+                : limits.flatMap(UsageWindowLookup.geminiWeeklyPercent(in:))
+            title = HeaderFormatter.title(
+                style: settings.headerStyle,
+                sessionPercent: session,
+                weeklyPercent: weekly
+            )
+        case .chatGPT, .claude, .auto:
+            let session = remaining
                 ? limits.flatMap(UsageWindowLookup.sessionRemainingPercent(in:))
                 : limits.flatMap(UsageWindowLookup.sessionPercent(in:))
-            let weekly = settings.showRemaining
+            let weekly = remaining
                 ? limits.flatMap(UsageWindowLookup.weeklyRemainingPercent(in:))
                 : limits.flatMap(UsageWindowLookup.weeklyPercent(in:))
             title = HeaderFormatter.title(
                 style: settings.headerStyle,
                 sessionPercent: session,
                 weeklyPercent: weekly
-            )
-        } else {
-            title = HeaderFormatter.title(
-                style: settings.headerStyle,
-                sessionPercent: nil,
-                weeklyPercent: nil
             )
         }
         statusItem.button?.title = title
@@ -381,6 +408,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
 
         menu.addItem(.separator())
 
+        let modelRoot = NSMenuItem(title: "Header Model", action: nil, keyEquivalent: "")
+        let modelMenu = NSMenu(title: "Header Model")
+        for provider in HeaderProvider.allCases {
+            let item = NSMenuItem(title: provider.displayName, action: #selector(menuSetHeaderProvider(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = provider.rawValue
+            item.state = settings.headerProvider == provider ? .on : .off
+            modelMenu.addItem(item)
+        }
+        modelRoot.submenu = modelMenu
+        menu.addItem(modelRoot)
+
         let headerRoot = NSMenuItem(title: "Menu Bar Shows", action: nil, keyEquivalent: "")
         let headerMenu = NSMenu(title: "Menu Bar Shows")
         for style in HeaderStyle.allCases {
@@ -456,6 +495,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
               let style = HeaderStyle(rawValue: raw)
         else { return }
         settings.headerStyle = style
+    }
+
+    @objc private func menuSetHeaderProvider(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String,
+              let provider = HeaderProvider(rawValue: raw)
+        else { return }
+        settings.headerProvider = provider
+        updateStatusTitle()
     }
 
     @objc private func menuQuit() {
