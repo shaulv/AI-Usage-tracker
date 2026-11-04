@@ -19,7 +19,7 @@ Your first job, in order:
 
 1. `swift build` and fix whatever the compiler finds. Expect small syntax
    errors, not design problems.
-2. `swift test`. 159 tests pass. They cover the core framework only.
+2. `swift test`. 161 tests pass. They cover the core framework only.
 3. Run the `curl` probe below against the real account. Until that returns
    `HTTP 200` with a `used_percent`, nothing else is worth doing.
 4. `xcodegen generate`, open the project, run the app, and look at the panel.
@@ -130,7 +130,7 @@ read-only, never refreshing anything.
 Gemini reads usage from the Antigravity language server's loopback quota
 endpoint, not from the OAuth token file (the token-file source is archived; see
 `tools/check-readme-claims.sh`). `AntigravitySession` discovers the running
-server by scanning `ps` + `lsof` (read-only, never writes), reads its CSRF
+backend (the standalone app's `language_server`, or the IDE's `agy --hub`; both serve the same account quota) by scanning `ps` + `lsof` (read-only, never writes), reads its CSRF
 token, and posts the caller-metadata block to
 `https://127.0.0.1:<port>/exa.language_server_pb.LanguageServerService/
 RetrieveUserQuotaSummary` over loopback HTTPS, trusting the server's self-signed
@@ -383,7 +383,7 @@ Tests/ChatGPTUsageCoreTests/
     UsageStoreTests.swift              12 tests (incl. burst cadence)
     ClaudeUsageProviderTests.swift     19 tests
     AntigravityUsageProviderTests.swift 16 tests
-    AntigravitySessionTests.swift       6 tests
+    AntigravitySessionTests.swift       8 tests
     HeaderFormatterTests.swift         14 tests
     CursorUsageProviderTests.swift     14 tests
     CursorCredentialsTests.swift        6 tests
@@ -619,7 +619,7 @@ The menu bar shows `--%` whenever there is nothing honest to display.
 
 ## Tests
 
-159 tests, all in the core framework, none of them touching the network or the
+161 tests, all in the core framework, none of them touching the network or the
 real home directory. Transport and credentials source are both injected.
 
 | File | Count | Covers |
@@ -630,7 +630,7 @@ real home directory. Transport and credentials source are both injected.
 | `ClaudeUsageProviderTests.swift` | 19 | fixture mapping (session/weekly/model rows, RFC 3339 resets, null buckets = real empty, clamping, the `isCloudflareChallenge` helper tested on the header branch and both body markers), unrecognized payload and HTML-with-200 are fetch failures, exact cookie/UA request shape with no Authorization header, the local expiry gate proving zero network calls, a Cloudflare 403 that is distinguished from a session-lapse 403, the 500 path, transport failure, PBKDF2 recipe parity with the live probe, decrypt-shape refusals, and Chromium tick-to-date conversion |
 | `HeaderFormatterTests.swift` | 14 | header strings, missing windows, derived-name lookup, Gemini prefixed lookup that never steals the ChatGPT rows, Cursor `C..% A..%` pair with `--` on a missing side, and Cursor monthly lookup that resolves `(not included)` rows to nil |
 | `AntigravityUsageProviderTests.swift` | 16 | Gemini and third-party rows, Argon Weekly when present without overwriting Gemini Weekly, worst-fraction pool merge, expiry gate with zero network calls, 401/500 paths, exact CSRF POST shape |
-| `AntigravitySessionTests.swift` | 6 | language-server discovery, CSRF token load, missing server, malformed session, unknown expiry, expired session |
+| `AntigravitySessionTests.swift` | 8 | language-server discovery, CSRF token load, missing server, malformed session, unknown expiry, expired session |
 | `GrokUsageProviderTests.swift` | 12 | weekly payload mapping, exact request shape and checksum, honest empty, failure paths |
 | `CursorUsageProviderTests.swift` | 14 | basic payload mapping to two monthly rows with a shared millis-string reset, exact Connect RPC request shape, Start-plan payload without the API pool still rendering both rows, clamping 140.7 to 100 and -8 to 0, unrecognized payload and HTML-with-200 as fetch failures, missing and expired credentials with zero network calls, 401/403/500 paths, transport failure, and reset-date edge cases |
 | `GrokUsageProviderTests.swift` | 12 | weekly payload maps one `Weekly` row with the server reset date, exact sand header set plus checksum suffix and empty body, deterministic checksum prefix, no-percent payload is an honest empty, unrecognized payload and non-JSON body are fetch failures, credential errors propagate with zero network calls, the expired-token gate, 401/403/500 paths, and transport failure |
@@ -695,7 +695,7 @@ What was not checked anywhere, and needs a Mac:
 | Not checked | Needs |
 |---|---|
 | That the Swift compiles | `swift build` (verified: passes) |
-| That the tests pass | `swift test` (verified: 159/159) and `xcodebuild test` |
+| That the tests pass | `swift test` (verified: 161/161) and `xcodebuild test` |
 | That the Grok endpoint responds for a real account | `swift run usage-probe grok` (verified: HTTP 200, `Weekly: 12%`, live on 29/09/2026) |
 | That the endpoint responds for a real account | `curl` / `tools/probe-chatgpt-payload.py` for ChatGPT (200 live); `tools/probe-claude-cookies.py` and `swift run usage-probe` for Claude — `/api/organizations/{org}/usage` returns 200 live (this account, free plan, empty/null buckets), while the bare `claude.ai/` root returns 403 |
 | That the panel renders and the menu bar updates | running the app |

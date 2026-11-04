@@ -79,24 +79,39 @@ public struct LanguageServerSessionSource: AntigravitySessionSource {
     static let psPath = "/bin/ps"
     static let lsofPath = "/usr/sbin/lsof"
 
-    /// Finds the language server line and pulls out its pid and CSRF token.
+    /// Finds the Antigravity backend line and pulls out its pid and CSRF token.
     ///
-    /// A line qualifies only when it is the language server binary AND carries
-    /// a `--csrf_token`, because the same binary can run without one and a
-    /// token-less process cannot answer the quota call.
+    /// Two backends serve the same account quota endpoint, so either qualifies:
+    /// the standalone app's `language_server` binary, and the IDE's `agy --hub`
+    /// binary (`~/.gemini/bin/agy`). A line qualifies only when it carries a
+    /// `--csrf_token`, because the same binaries can run without one and a
+    /// token-less process cannot answer the quota call. The token is accepted
+    /// both as `--csrf_token <value>` and `--csrf_token=<value>`; the IDE's
+    /// `agy` uses the second form.
     public static func parseProcess(fromPSOutput output: String) -> (processId: Int32, csrfToken: String)? {
         for line in output.split(separator: "\n") {
-            guard line.contains("language_server"), line.contains("--csrf_token") else { continue }
+            guard line.contains("--csrf_token"), isAntigravityBackend(line) else { continue }
             let fields = line.split(separator: " ", omittingEmptySubsequences: true).map(String.init)
             guard let pidField = fields.first, let pid = Int32(pidField) else { continue }
-            guard let flagIndex = fields.firstIndex(of: "--csrf_token"),
-                  fields.indices.contains(flagIndex + 1)
+            var token: String?
+            if let flagIndex = fields.firstIndex(of: "--csrf_token") {
+                if fields.indices.contains(flagIndex + 1) { token = fields[flagIndex + 1] }
+            } else if let joined = fields.first(where: { $0.hasPrefix("--csrf_token=") }) {
+                token = String(joined.dropFirst("--csrf_token=".count))
+            }
+            guard let value = token?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !value.isEmpty
             else { continue }
-            let token = fields[flagIndex + 1].trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !token.isEmpty else { continue }
-            return (pid, token)
+            return (pid, value)
         }
         return nil
+    }
+
+    /// True for the standalone `language_server` binary and for the IDE's
+    /// `agy --hub` binary, and for nothing else that happens to carry a token.
+    private static func isAntigravityBackend(_ line: Substring) -> Bool {
+        if line.contains("language_server") { return true }
+        return line.contains("/agy ") && line.contains("--hub")
     }
 
     /// Collects the loopback ports a process listens on, in the order `lsof`

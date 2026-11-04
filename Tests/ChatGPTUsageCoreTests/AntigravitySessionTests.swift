@@ -29,6 +29,19 @@ final class AntigravitySessionTests: XCTestCase {
         XCTAssertNil(LanguageServerSessionSource.parseProcess(fromPSOutput: output))
     }
 
+    // The IDE's backend: `agy --hub`, token in `--flag=value` form.
+    func test_parseProcess_readsAgyHubWithEqualsStyleToken() throws {
+        let line = " 3935 /Users/me/.gemini/bin/agy --hub --hub-port=50194 --app_data_dir=antigravity --csrf_token=FORCED-AGY --add-dir=/Users/me/My Drive/PAUL"
+        let found = try XCTUnwrap(LanguageServerSessionSource.parseProcess(fromPSOutput: line))
+        XCTAssertEqual(found.processId, 3935)
+        XCTAssertEqual(found.csrfToken, "FORCED-AGY")
+    }
+
+    func test_parseProcess_ignoresAgyWithoutHubFlag() {
+        let line = " 3936 /Users/me/.gemini/bin/agy chat --csrf_token=NOPE"
+        XCTAssertNil(LanguageServerSessionSource.parseProcess(fromPSOutput: line))
+    }
+
     func test_parseProcess_emptyOutput_isNil() {
         XCTAssertNil(LanguageServerSessionSource.parseProcess(fromPSOutput: ""))
     }
