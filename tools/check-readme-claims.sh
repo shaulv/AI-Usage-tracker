@@ -18,8 +18,8 @@ check() { # check <label> <expected> <actual>
 echo "== counts =="
 # .build/ and build/ are build output, never source: prune it everywhere or a stale
 # derived file makes every count a lie.
-check "swift files"        43 "$(find . \( -path './.build' -o -path './build' \) -prune -o -name '*.swift' -print | wc -l | tr -d ' ')"
-check "test functions"     161 "$(grep -rhoE 'func test_' Tests | wc -l | tr -d ' ')"
+check "swift files"        47 "$(find . \( -path './.build' -o -path './build' \) -prune -o -name '*.swift' -print | wc -l | tr -d ' ')"
+check "test functions"     166 "$(grep -rhoE 'func test_' Tests | wc -l | tr -d ' ')"
 check "provider tests"     17 "$(grep -cE 'func test_' Tests/ChatGPTUsageCoreTests/ChatGPTUsageProviderTests.swift | tr -d ' ')"
 check "credentials tests"  15 "$(grep -cE 'func test_' Tests/ChatGPTUsageCoreTests/CodexCredentialsTests.swift | tr -d ' ')"
 check "store tests"        12 "$(grep -cE 'func test_' Tests/ChatGPTUsageCoreTests/UsageStoreTests.swift | tr -d ' ')"

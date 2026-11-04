@@ -18,6 +18,7 @@ import ChatGPTUsageCore
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNotificationCenterDelegate {
     private var statusItem: NSStatusItem!
     private var panel: NSPanel?
+    private var toggleHotKey: GlobalHotKey?
     let settings = AppSettings()
     // Lazy: UsageStore is MainActor-isolated and these stored properties are
     // initialized in applicationDidFinishLaunching, which is MainActor context.
@@ -66,6 +67,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
                 .requestAuthorization(options: [.alert, .sound, .badge])
         }
 
+
+        wireToggleShortcut()
 
         // The panel reopens in the state the user left it in.
         if settings.panelEnabled {
@@ -507,6 +510,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
 
     @objc private func menuQuit() {
         NSApplication.shared.terminate(nil)
+    }
+
+    // MARK: - Global shortcut
+
+    /// Registers the user's shortcut now and again on every change, so
+    /// recording a new one in Settings takes effect without a restart.
+    private func wireToggleShortcut() {
+        toggleHotKey = GlobalHotKey { [weak self] in self?.togglePanel() }
+        settings.$toggleShortcut
+            .removeDuplicates()
+            .sink { [weak self] shortcut in
+                guard let self else { return }
+                let ok = self.toggleHotKey?.register(shortcut) ?? true
+                self.settings.toggleShortcutUnavailable = !ok
+            }
+            .store(in: &cancellables)
     }
 
     // MARK: - Provider lifecycle

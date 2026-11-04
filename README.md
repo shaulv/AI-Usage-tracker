@@ -19,7 +19,7 @@ Your first job, in order:
 
 1. `swift build` and fix whatever the compiler finds. Expect small syntax
    errors, not design problems.
-2. `swift test`. 161 tests pass. They cover the core framework only.
+2. `swift test`. 166 tests pass. They cover the core framework only.
 3. Run the `curl` probe below against the real account. Until that returns
    `HTTP 200` with a `used_percent`, nothing else is worth doing.
 4. `xcodegen generate`, open the project, run the app, and look at the panel.
@@ -144,6 +144,13 @@ bucket ids still start with `gemini-`, so it is classified before the Gemini
 prefix). Worst remaining fraction wins within each pool. If the server is not running the
 panel says "Antigravity IDE is not running - open it to read Gemini usage"; a
 `401`/`403` from the server says "Antigravity rejected the local session - restart Antigravity IDE" (the OAuth refresh needs a client secret the app must never hold, so a 401 is not retried), and any other server failure says "Could not reach the Antigravity language server".
+
+**Panel shortcut.** Settings has a "Panel Shortcut" recorder: click it, press a
+combination (must include ⌘, ⌥ or ⌃), and that system-wide shortcut shows the
+panel when hidden and hides it when shown. Esc cancels, Delete clears, and none
+is set by default. It is registered with Carbon `RegisterEventHotKey` (no
+Accessibility permission) in `GlobalHotKey.swift`; `GlobalShortcut` holds the
+rules and the stored `keyCode:modifiers` value.
 
 Cursor rides the same shape with its own sources: the IDE's own credential
 store (`~/Library/Application Support/Cursor/User/globalStorage/state.vscdb`,
@@ -384,6 +391,7 @@ Tests/ChatGPTUsageCoreTests/
     ClaudeUsageProviderTests.swift     19 tests
     AntigravityUsageProviderTests.swift 16 tests
     AntigravitySessionTests.swift       8 tests
+    GlobalShortcutTests.swift           5 tests
     HeaderFormatterTests.swift         14 tests
     CursorUsageProviderTests.swift     14 tests
     CursorCredentialsTests.swift        6 tests
@@ -619,7 +627,7 @@ The menu bar shows `--%` whenever there is nothing honest to display.
 
 ## Tests
 
-161 tests, all in the core framework, none of them touching the network or the
+166 tests, all in the core framework, none of them touching the network or the
 real home directory. Transport and credentials source are both injected.
 
 | File | Count | Covers |
@@ -685,7 +693,7 @@ What was actually checked on the machine where this was written, and how:
 | The three base64url JWT payloads in the tests | re-encoded from the literal JSON, byte for byte |
 | Threshold color contrast | WCAG relative luminance against `#FFFFFF` and `#1C1C1E`; all six at or above 4.5:1 |
 | No placeholder or elided code | grep for `TODO`, `FIXME`, `implement here`, `rest of code`, `similar to above`, `for brevity` returns nothing |
-| Brace balance in all 43 Swift files | counted with strings and comments stripped; 0 imbalanced |
+| Brace balance in all 47 Swift files | counted with strings and comments stripped; 0 imbalanced |
 | `project.yml` is valid | parsed as YAML; three targets, one scheme |
 | No writes to the auth file | grep for `write(to:`, `removeItem`, `FileHandle` across `Sources/` returns nothing |
 | Exactly one network site | `URLSession` appears once, in `ChatGPTUsageProvider.urlSessionTransport` |
@@ -695,7 +703,7 @@ What was not checked anywhere, and needs a Mac:
 | Not checked | Needs |
 |---|---|
 | That the Swift compiles | `swift build` (verified: passes) |
-| That the tests pass | `swift test` (verified: 161/161) and `xcodebuild test` |
+| That the tests pass | `swift test` (verified: 166/166) and `xcodebuild test` |
 | That the Grok endpoint responds for a real account | `swift run usage-probe grok` (verified: HTTP 200, `Weekly: 12%`, live on 29/09/2026) |
 | That the endpoint responds for a real account | `curl` / `tools/probe-chatgpt-payload.py` for ChatGPT (200 live); `tools/probe-claude-cookies.py` and `swift run usage-probe` for Claude — `/api/organizations/{org}/usage` returns 200 live (this account, free plan, empty/null buckets), while the bare `claude.ai/` root returns 403 |
 | That the panel renders and the menu bar updates | running the app |

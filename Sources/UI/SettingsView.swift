@@ -14,6 +14,8 @@ struct SettingsView: View {
             Divider()
             headerModelSection
             Divider()
+            shortcutSection
+            Divider()
             thresholdsSection
             Divider()
             notificationsSection
@@ -37,6 +39,25 @@ struct SettingsView: View {
             Text("Select which AI model's usage percentages appear in the macOS menu bar.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+        }
+    }
+
+    private var shortcutSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Panel Shortcut")
+                .font(.subheadline.weight(.semibold))
+
+            ShortcutRecorder(shortcut: $settings.toggleShortcut)
+
+            if settings.toggleShortcutUnavailable {
+                Text("That shortcut is already in use by macOS or another app. Pick a different one.")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            } else {
+                Text("A system-wide shortcut that shows the panel when hidden and hides it when shown. Click the field, then press the keys (Escape cancels, Delete clears).")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 

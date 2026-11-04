@@ -46,6 +46,22 @@ final class AppSettings: ObservableObject {
         didSet { defaults.set(showRemaining, forKey: "showRemaining") }
     }
 
+    /// Global shortcut that shows the panel when hidden and hides it when
+    /// shown. Nil until the user records one, so it can never collide with a
+    /// shortcut they already rely on.
+    @Published var toggleShortcut: GlobalShortcut? {
+        didSet {
+            if let toggleShortcut {
+                defaults.set(toggleShortcut.storageValue, forKey: "toggleShortcut")
+            } else {
+                defaults.removeObject(forKey: "toggleShortcut")
+            }
+        }
+    }
+    /// Set by the app when macOS refused the recorded shortcut (already taken).
+    /// Not persisted.
+    @Published var toggleShortcutUnavailable = false
+
     // MARK: - Thresholds & Notifications
 
     /// Warning threshold (orange status): triggers when quota remaining % is at or below this value.
@@ -97,6 +113,8 @@ final class AppSettings: ObservableObject {
         self.antigravityEnabled = defaults.object(forKey: "antigravityEnabled") as? Bool ?? true
         self.cursorEnabled = defaults.object(forKey: "cursorEnabled") as? Bool ?? true
         self.grokEnabled = defaults.object(forKey: "grokEnabled") as? Bool ?? true
+        self.toggleShortcut = defaults.string(forKey: "toggleShortcut")
+            .flatMap { GlobalShortcut(storageValue: $0) }
         let rawStyle = defaults.string(forKey: "headerStyle") ?? ""
         self.headerStyle = HeaderStyle(rawValue: rawStyle) ?? .sessionWeekly
         let rawProvider = defaults.string(forKey: "headerProvider") ?? ""

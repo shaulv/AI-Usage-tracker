@@ -15,6 +15,7 @@
 		337474310658DBF18E0AAD81 /* ChatGPTUsageProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9751E1C54AEF4E16019B58AB /* ChatGPTUsageProviderTests.swift */; };
 		3D641169E4C7FC58843A5AF3 /* AntigravityUsageProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 413F271B096EF2C8738C1C92 /* AntigravityUsageProviderTests.swift */; };
 		40B42EFD4AE4CF112896ECE3 /* NotificationEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BA56723FCDBCCE09DC70018 /* NotificationEngine.swift */; };
+		4166F21A111F46C105A05E5C /* GlobalHotKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D0D22C218E0716E3305D0B6 /* GlobalHotKey.swift */; };
 		44F8DAB6D203B30FECD50F8B /* UsageStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 317FA02300E30D763B728BEE /* UsageStoreTests.swift */; };
 		463F4F4D6023E7BE90D55DAD /* CursorCredentials.swift in Sources */ = {isa = PBXBuildFile; fileRef = 419DA25A5BDED30FEC58A1F2 /* CursorCredentials.swift */; };
 		46B0C4C78C72F30844423CBC /* ClaudeCredentials.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC9A21ED8B5288BABC7E1DEC /* ClaudeCredentials.swift */; };
@@ -25,8 +26,10 @@
 		59712A989E84E822905D3A56 /* ChatGPTUsageTrackerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98788F41FE7F1DC7E8B065BA /* ChatGPTUsageTrackerApp.swift */; };
 		59F945A33C732E58302CFD9D /* UsageStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = E451DE39F7C4CCE542FF5227 /* UsageStore.swift */; };
 		5B3D8F8C8FE3483BED8CE7E4 /* ChatGPTUsageCore.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 7AF66DAAA66534EEF37AB8B5 /* ChatGPTUsageCore.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		5CB60BBD34ADEDF275FAA22F /* GlobalShortcut.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8BF29952A556FA97070FEA2 /* GlobalShortcut.swift */; };
 		5EBCDAB072B188B073BBB201 /* CursorCredentialsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 410875FED501EC0543B4F1D5 /* CursorCredentialsTests.swift */; };
 		67A8D76422A114828FF601DE /* HeaderFormatterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5E8964F1E74F3D964945EE9 /* HeaderFormatterTests.swift */; };
+		68F4A389C8D4552002E47B87 /* ShortcutRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 082BE62EDAC2E833D27BFFA2 /* ShortcutRecorder.swift */; };
 		70093ADF4CFE339A5EE27D56 /* AntigravitySessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0B364DDA7CEF0F4C0E9593D /* AntigravitySessionTests.swift */; };
 		7037EA6EC9A0A99C6FBAF412 /* ClaudeUsageResponse.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1163514BBABA996BD7CAFFF /* ClaudeUsageResponse.swift */; };
 		7152521160318BC8D881BC61 /* ChatGPTUsageCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7AF66DAAA66534EEF37AB8B5 /* ChatGPTUsageCore.framework */; };
@@ -35,6 +38,7 @@
 		8673B66C3A29F8E053F87E5A /* ChatGPTUsageProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8AA5CA63687603426025A6E /* ChatGPTUsageProvider.swift */; };
 		8EFFC49DD9580F6232D4B35E /* LimitsPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E2FB871FF02697CA5F8F0E4 /* LimitsPanel.swift */; };
 		8F608DDE509C71EC9AED389B /* UsageStatusEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E0C1F0EFB2E82D516DFA970 /* UsageStatusEngineTests.swift */; };
+		91AC815C4DB46022E03A26AE /* GlobalShortcutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF72A265B166566AD49004B7 /* GlobalShortcutTests.swift */; };
 		9DC964A7FE3482F28E7759D6 /* ClaudeUsageProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9594A62AFC018171FFF1F8F6 /* ClaudeUsageProviderTests.swift */; };
 		A1BF92246604BDC0B0B5FD35 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8003BB44FE7EF68095ADB6E4 /* AppSettings.swift */; };
 		AB2940E2D6BBAEA64AA8651D /* GrokUsageProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C810C0310CC7B98292694AF /* GrokUsageProviderTests.swift */; };
@@ -107,6 +111,7 @@
 
 /* Begin PBXFileReference section */
 		03B3D895B44F0FEDA00365B4 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		082BE62EDAC2E833D27BFFA2 /* ShortcutRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutRecorder.swift; sourceTree = "<group>"; };
 		0E2FB871FF02697CA5F8F0E4 /* LimitsPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LimitsPanel.swift; sourceTree = "<group>"; };
 		126F7F7250ACC23332971B2E /* AntigravityQuotaSummary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AntigravityQuotaSummary.swift; sourceTree = "<group>"; };
 		149F8B756379F9A9D5CF94DE /* ChatGPTUsageTracker.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ChatGPTUsageTracker.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -116,6 +121,7 @@
 		410875FED501EC0543B4F1D5 /* CursorCredentialsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CursorCredentialsTests.swift; sourceTree = "<group>"; };
 		413F271B096EF2C8738C1C92 /* AntigravityUsageProviderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AntigravityUsageProviderTests.swift; sourceTree = "<group>"; };
 		419DA25A5BDED30FEC58A1F2 /* CursorCredentials.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CursorCredentials.swift; sourceTree = "<group>"; };
+		4D0D22C218E0716E3305D0B6 /* GlobalHotKey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalHotKey.swift; sourceTree = "<group>"; };
 		5BA56723FCDBCCE09DC70018 /* NotificationEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationEngine.swift; sourceTree = "<group>"; };
 		5EDAF0D86E7DDDE64EEBFF56 /* UsageLimit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageLimit.swift; sourceTree = "<group>"; };
 		5F528BD8DA419299E0E4F2F7 /* GrokUsageResponse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GrokUsageResponse.swift; sourceTree = "<group>"; };
@@ -132,6 +138,7 @@
 		A2680959AF07A1C377E86042 /* RelativeTime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelativeTime.swift; sourceTree = "<group>"; };
 		A5E8964F1E74F3D964945EE9 /* HeaderFormatterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeaderFormatterTests.swift; sourceTree = "<group>"; };
 		A844750E9093BC3604BEC419 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		A8BF29952A556FA97070FEA2 /* GlobalShortcut.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalShortcut.swift; sourceTree = "<group>"; };
 		AE36C74954A68FC5EFF8641E /* GrokCredentials.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GrokCredentials.swift; sourceTree = "<group>"; };
 		B46482DE5AFFAAB86DF35582 /* AppIcon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = AppIcon.icns; sourceTree = "<group>"; };
 		B84465CFB6BEDB829D24A94E /* UsageStatusTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageStatusTracker.swift; sourceTree = "<group>"; };
@@ -145,6 +152,7 @@
 		DB50D523FE5DD3F01A1A30BF /* GrokUsageProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GrokUsageProvider.swift; sourceTree = "<group>"; };
 		DD4FBD4FD30B9C02976557F9 /* GrokCredentialsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GrokCredentialsTests.swift; sourceTree = "<group>"; };
 		E451DE39F7C4CCE542FF5227 /* UsageStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageStore.swift; sourceTree = "<group>"; };
+		EF72A265B166566AD49004B7 /* GlobalShortcutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalShortcutTests.swift; sourceTree = "<group>"; };
 		F0B364DDA7CEF0F4C0E9593D /* AntigravitySessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AntigravitySessionTests.swift; sourceTree = "<group>"; };
 		F1163514BBABA996BD7CAFFF /* ClaudeUsageResponse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeUsageResponse.swift; sourceTree = "<group>"; };
 		F7D82BC44743B4634351B868 /* AntigravitySession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AntigravitySession.swift; sourceTree = "<group>"; };
@@ -184,6 +192,7 @@
 				753C5A26573B31C6AD19DB35 /* CodexCredentialsTests.swift */,
 				410875FED501EC0543B4F1D5 /* CursorCredentialsTests.swift */,
 				3C839868D82CBB9BA5CAAA55 /* CursorUsageProviderTests.swift */,
+				EF72A265B166566AD49004B7 /* GlobalShortcutTests.swift */,
 				DD4FBD4FD30B9C02976557F9 /* GrokCredentialsTests.swift */,
 				7C810C0310CC7B98292694AF /* GrokUsageProviderTests.swift */,
 				A5E8964F1E74F3D964945EE9 /* HeaderFormatterTests.swift */,
@@ -209,6 +218,7 @@
 				419DA25A5BDED30FEC58A1F2 /* CursorCredentials.swift */,
 				FA9AC5E78BFAED062561F490 /* CursorUsageProvider.swift */,
 				C8CE70D03F33AF017FA1FF1E /* CursorUsageResponse.swift */,
+				A8BF29952A556FA97070FEA2 /* GlobalShortcut.swift */,
 				AE36C74954A68FC5EFF8641E /* GrokCredentials.swift */,
 				DB50D523FE5DD3F01A1A30BF /* GrokUsageProvider.swift */,
 				5F528BD8DA419299E0E4F2F7 /* GrokUsageResponse.swift */,
@@ -265,6 +275,7 @@
 				A844750E9093BC3604BEC419 /* AppDelegate.swift */,
 				8003BB44FE7EF68095ADB6E4 /* AppSettings.swift */,
 				98788F41FE7F1DC7E8B065BA /* ChatGPTUsageTrackerApp.swift */,
+				4D0D22C218E0716E3305D0B6 /* GlobalHotKey.swift */,
 				5BA56723FCDBCCE09DC70018 /* NotificationEngine.swift */,
 				B89FF30FD3A640F27C8A70E9 /* Resources */,
 			);
@@ -277,6 +288,7 @@
 				0E2FB871FF02697CA5F8F0E4 /* LimitsPanel.swift */,
 				A2680959AF07A1C377E86042 /* RelativeTime.swift */,
 				03B3D895B44F0FEDA00365B4 /* SettingsView.swift */,
+				082BE62EDAC2E833D27BFFA2 /* ShortcutRecorder.swift */,
 				D755E13F07D2F8DA06060AB1 /* ThresholdColors.swift */,
 			);
 			path = UI;
@@ -407,10 +419,12 @@
 				096FFD6C2A48F3C8340FB04A /* AppDelegate.swift in Sources */,
 				A1BF92246604BDC0B0B5FD35 /* AppSettings.swift in Sources */,
 				59712A989E84E822905D3A56 /* ChatGPTUsageTrackerApp.swift in Sources */,
+				4166F21A111F46C105A05E5C /* GlobalHotKey.swift in Sources */,
 				8EFFC49DD9580F6232D4B35E /* LimitsPanel.swift in Sources */,
 				40B42EFD4AE4CF112896ECE3 /* NotificationEngine.swift in Sources */,
 				58810C23EF284F84BD472014 /* RelativeTime.swift in Sources */,
 				B42CCF6232EFE647523C17C1 /* SettingsView.swift in Sources */,
+				68F4A389C8D4552002E47B87 /* ShortcutRecorder.swift in Sources */,
 				233B74B227D572DC1E98EFB1 /* ThresholdColors.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -426,6 +440,7 @@
 				2FDBEE0E6ACCF80F4F096C4F /* CodexCredentialsTests.swift in Sources */,
 				5EBCDAB072B188B073BBB201 /* CursorCredentialsTests.swift in Sources */,
 				750D0760015A89D28B790A0B /* CursorUsageProviderTests.swift in Sources */,
+				91AC815C4DB46022E03A26AE /* GlobalShortcutTests.swift in Sources */,
 				85D2D37C5A9B0025B0A218A6 /* GrokCredentialsTests.swift in Sources */,
 				AB2940E2D6BBAEA64AA8651D /* GrokUsageProviderTests.swift in Sources */,
 				67A8D76422A114828FF601DE /* HeaderFormatterTests.swift in Sources */,
@@ -451,6 +466,7 @@
 				463F4F4D6023E7BE90D55DAD /* CursorCredentials.swift in Sources */,
 				C0DEEADD00ACE97EF28CBC7A /* CursorUsageProvider.swift in Sources */,
 				47EB19AD3486BF1A624A52C9 /* CursorUsageResponse.swift in Sources */,
+				5CB60BBD34ADEDF275FAA22F /* GlobalShortcut.swift in Sources */,
 				E3FC0F9D21F71C30FE61F112 /* GrokCredentials.swift in Sources */,
 				27DC60E43010370B49C5D58C /* GrokUsageProvider.swift in Sources */,
 				AB5E8E003F5415F15A2438D7 /* GrokUsageResponse.swift in Sources */,
