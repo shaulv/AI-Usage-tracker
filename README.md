@@ -119,10 +119,13 @@ Five steps, and the code for each:
 | 4 | The response lists metered windows: a percentage used, a window length, and a reset time. Each becomes one `UsageLimit`, named by how long its window is. | `ChatGPTUsageResponse.swift` |
 | 5 | `UsageStore` holds the rows, remembers which one you picked, and drives the adaptive timer (60s idle, 10s during a movement burst). The menu bar shows the header format the user chose. | `UsageStore.swift`, `Sources/App`, `Sources/UI` |
 
-Claude rides the same five steps with its own sources: Claude Desktop's
-session cookies (read from its Chromium cookie store, decrypted with the
-Keychain's `Claude Safe Storage` key) instead of `auth.json`, and
-`GET claude.ai/api/organizations/{org}/usage` instead of the wham endpoint.
+Claude rides the same five steps with its own local sources: Claude Desktop's
+encrypted OAuth token cache in `config.json` (`oauth:tokenCacheV2` / `oauth:tokenCache`,
+decrypted with Keychain's `Claude Safe Storage`) and Claude Code credentials
+(`~/.claude/.credentials.json` or Keychain `Claude Code-credentials`) against
+`GET https://api.anthropic.com/api/oauth/usage` (`anthropic-beta: oauth-2025-04-20`),
+falling back to Claude Desktop or Chrome `.claude.ai` cookies against
+`GET claude.ai/api/organizations/{org}/usage`.
 `ClaudeUsageProvider` mirrors `ChatGPTUsageProvider` line for line: same
 `UsageProvider` protocol, same injected transport, same never-stale rule,
 read-only, never refreshing anything.
@@ -348,10 +351,10 @@ Sources/ChatGPTUsageCore/
   UsageStore.swift                   selection, adaptive timer (60s/10s burst),
                                      the never-stale rule
   ClaudeCredentials.swift            ClaudeSessionSource protocol,
-                                     ClaudeDesktopSessionSource (Keychain key +
-                                     read-only SQLite cookie decryption)
+                                     ClaudeDesktopSessionSource (OAuth cache +
+                                     Claude Code + Keychain/SQLite cookies)
   ClaudeUsageResponse.swift          Claude DTOs, ClaudeUsageMapper.limits(from:)
-    ClaudeUsageProvider.swift          the claude.ai GET and every failure path
+    ClaudeUsageProvider.swift          OAuth/cookie GET and every failure path
   AntigravityQuotaSummary.swift      Decodable DTOs for RetrieveUserQuotaSummary
                                       and toUsageLimits(now:) mapping groups
   AntigravitySession.swift           AntigravitySessionSource protocol,
@@ -388,7 +391,8 @@ Tests/ChatGPTUsageCoreTests/
           ChatGPTUsageProviderTests.swift    17 tests
     CodexCredentialsTests.swift        15 tests
     UsageStoreTests.swift              12 tests (incl. burst cadence)
-    ClaudeUsageProviderTests.swift     19 tests
+    ClaudeUsageProviderTests.swift     27 tests
+    ClaudeCredentialsTests.swift       11 tests
     AntigravityUsageProviderTests.swift 16 tests
     AntigravitySessionTests.swift       8 tests
     GlobalShortcutTests.swift           5 tests
@@ -598,7 +602,8 @@ user reports one of these, the fix is on the right, not in the code.
 | `Network error - check your connection` | fetchFailed | `URLError` from the transport | connectivity |
 | `ChatGPT usage service returned HTTP <code>` | fetchFailed | any other non-2xx | server side; retry later |
 | `Unexpected response from ChatGPT usage service` | fetchFailed | body did not decode, or none of `plan_type`, `rate_limit`, `code_review_rate_limit`, `additional_rate_limits` was present | **the endpoint changed.** See "When OpenAI changes something". |
-| `Claude Desktop is not signed in on this Mac` | notConnected | cookie store missing/unreadable, no `sessionKey`/`lastActiveOrg`, or the Keychain key is unavailable | open Claude Desktop and sign in |
+| `Claude Desktop is not signed in on this Mac` | notConnected | OAuth cache, Claude Code credentials, and cookie stores are all missing/empty | open Claude Desktop and sign in |
+| `Claude credentials locked in macOS Keychain - unlock Login Keychain` | notConnected | Keychain denied read access (`errSecAuthFailed` / `-25293`) to `Claude Safe Storage`, `Claude Code-credentials`, or `Chrome Safe Storage` and no unlocked valid fallback exists | unlock/repair `login` Keychain in Keychain Access |
 | `Claude is blocked by Cloudflare - open Claude Desktop, then Refresh` | notConnected | HTTP 403 from claude.ai that is a Cloudflare managed challenge — `cf-mitigated: challenge` header, or body contains `Just a moment` / `cf_chl_`, detected by `isCloudflareChallenge` | the session cookie is valid; Cloudflare is challenging the browser. Open Claude Desktop (already signed in) and let it answer the challenge, then Refresh. Do not re-sign-in: it cannot help. |
 | `Claude session expired - open Claude to refresh it` | notConnected | cookie `expires_utc` past, or HTTP 401/403 that is NOT a Cloudflare challenge (aged-out `cf_clearance`) | open Claude Desktop once |
 | `Claude usage service returned HTTP <code>` | fetchFailed | any other non-2xx from claude.ai | server side; retry later |
@@ -627,7 +632,7 @@ The menu bar shows `--%` whenever there is nothing honest to display.
 
 ## Tests
 
-166 tests, all in the core framework, none of them touching the network or the
+182 tests, all in the core framework, none of them touching the network or the
 real home directory. Transport and credentials source are both injected.
 
 | File | Count | Covers |
@@ -635,7 +640,8 @@ real home directory. Transport and credentials source are both injected.
 | `ChatGPTUsageProviderTests.swift` | 16 | the captured payload end to end, window naming by duration not position, 30-day and durationless windows, clamping 250 to 100 and -12 to 0, unnamed `additional_rate_limits` entries, unrecognized payload is a failure not an empty list, recognized payload with zero windows is a real empty answer, the expiry gate, 401, 503, an HTML body served as 200, transport failure, and the exact request headers | Tests-table counts are exact per file; see tools/check-readme-claims.sh. |
 | `CodexCredentialsTests.swift` | 14 | real-shaped `auth.json`, API-key sign-in, missing tokens, malformed JSON, missing file, load from disk, JWT expiry decode including unpadded base64url and a missing `exp`, the 60 second grace window, and every `WindowNamer` branch |
 | `UsageStoreTests.swift` | 11 | success publishes, **failure discards the previous numbers**, menu bar label follows the selection, a saved selection that no longer exists falls back to the first row, empty result stays `ok` with `--%`, the 60 second floor, both legs of the burst cadence, movement opens a burst, failure clears the movement baseline, and selection persistence |
-| `ClaudeUsageProviderTests.swift` | 19 | fixture mapping (session/weekly/model rows, RFC 3339 resets, null buckets = real empty, clamping, the `isCloudflareChallenge` helper tested on the header branch and both body markers), unrecognized payload and HTML-with-200 are fetch failures, exact cookie/UA request shape with no Authorization header, the local expiry gate proving zero network calls, a Cloudflare 403 that is distinguished from a session-lapse 403, the 500 path, transport failure, PBKDF2 recipe parity with the live probe, decrypt-shape refusals, and Chromium tick-to-date conversion |
+| `ClaudeUsageProviderTests.swift` | 30 | OAuth Bearer endpoint/headers plus cookie/fixture mapping (session/weekly/model rows, `limits` array, RFC 3339 resets, null buckets = real empty, clamping, `isCloudflareChallenge`), local unencrypted desktop usage/rate-limit fallback (`claude_desktop_config.json` + `plan-usage-history.json`), unrecognized payload and HTML-with-200 are fetch failures, the local expiry gate proving zero network calls, 403/500/transport failures, PBKDF2 recipe parity, decrypt refusals, and Chromium tick-to-date conversion |
+| `ClaudeCredentialsTests.swift` | 11 | `safeStorage` decrypt without 32-byte cookie prefix, `oauth:tokenCacheV2`/`oauth:tokenCache` selection (`user:profile` preference, staging/revoked/expired skips), Claude Code file and Keychain fallbacks, scope deprioritization, Chrome snapshot cookie fallback, empty-file Keychain avoidance, and `errSecAuthFailed` denial vs missing item distinction |
 | `HeaderFormatterTests.swift` | 14 | header strings, missing windows, derived-name lookup, Gemini prefixed lookup that never steals the ChatGPT rows, Cursor `C..% A..%` pair with `--` on a missing side, and Cursor monthly lookup that resolves `(not included)` rows to nil |
 | `AntigravityUsageProviderTests.swift` | 16 | Gemini and third-party rows, Argon Weekly when present without overwriting Gemini Weekly, worst-fraction pool merge, expiry gate with zero network calls, 401/500 paths, exact CSRF POST shape |
 | `AntigravitySessionTests.swift` | 8 | language-server discovery, CSRF token load, missing server, malformed session, unknown expiry, expired session |

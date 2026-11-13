@@ -3,26 +3,58 @@ import Security
 import CommonCrypto
 import SQLite3
 
-/// The Claude Desktop session this app borrows, read-only.
+/// Result of one non-interactive lookup against macOS Keychain.
 ///
-/// Same two rules as `CodexCredentials`, restated because they are load-bearing:
+/// Keeping "missing" distinct from "denied/locked" stops Keychain failures from
+/// presenting as "not signed in".
+public enum KeychainLookupResult: Equatable, Sendable {
+    case found(String)
+    case notFound
+    case denied(OSStatus)
+}
+
+public typealias KeychainLookup = @Sendable (_ service: String) -> KeychainLookupResult
+
+/// The Claude session this app borrows, read-only.
 ///
-/// 1. Never refresh anything. Claude Desktop owns its session; the OAuth refresh
-///    flow belongs to Claude Code. This app reads whatever is current and shows
-///    an honest "open Claude to refresh" message when it stops working.
-/// 2. Never log a cookie value, never write to the cookie store. Read-only,
-///    provably: the SQLite connection is opened with SQLITE_OPEN_READONLY.
+/// Supports either OAuth Bearer tokens (used by Claude Desktop's `oauth:tokenCacheV2`
+/// and Claude Code against `https://api.anthropic.com/api/oauth/usage`) or
+/// Chromium session cookies (`sessionKey`, `lastActiveOrg`, optional `cf_clearance`)
+/// as a fallback against `claude.ai`.
 ///
-/// Sendable because the load runs detached from the main actor on purpose:
-/// the Keychain can present a consent dialog for a first-time reader, and that
-/// wait must never freeze the menu-bar UI or a test host.
+/// Two load-bearing rules remain unchanged:
+/// 1. Never refresh anything and never write to any credential store.
+/// 2. Never log a token or cookie value; SQLite databases are copied to a temporary
+///    snapshot before opening strictly read-only (`immutable=1`).
 public struct ClaudeSession: Equatable, Sendable {
-    let sessionKey: String
-    let organizationId: String
-    let cfClearance: String?
-    /// From the cookie's `expires_utc` (100ns ticks since 1601-01-01), converted
-    /// to a Unix Date. Nil when absent, which is treated as "expiry unknown".
-    let expiresAt: Date?
+    public let sessionKey: String
+    public let organizationId: String
+    public let cfClearance: String?
+    public let accessToken: String?
+    /// From the OAuth `expiresAt` timestamp or Chromium cookie `expires_utc`.
+    /// Nil when absent, which is treated as "expiry unknown".
+    public let expiresAt: Date?
+
+    public init(
+        sessionKey: String,
+        organizationId: String,
+        cfClearance: String?,
+        expiresAt: Date?
+    ) {
+        self.sessionKey = sessionKey
+        self.organizationId = organizationId
+        self.cfClearance = cfClearance
+        self.accessToken = nil
+        self.expiresAt = expiresAt
+    }
+
+    public init(accessToken: String, expiresAt: Date?) {
+        self.sessionKey = ""
+        self.organizationId = ""
+        self.cfClearance = nil
+        self.accessToken = accessToken
+        self.expiresAt = expiresAt
+    }
 
     /// Same 60 second grace window as Codex, so clock skew cannot lock the user
     /// out of their own usage view.
@@ -33,34 +65,209 @@ public struct ClaudeSession: Equatable, Sendable {
 }
 
 /// The seam that makes every Claude credential error testable without a real
-/// cookie store or Keychain item on the machine running the tests.
+/// cookie store, OAuth cache, or Keychain item on the machine running the tests.
 public protocol ClaudeSessionSource: Sendable {
     func load() throws -> ClaudeSession
 }
 
-/// Reads the `sessionKey`, `lastActiveOrg` and `cf_clearance` cookies out of
-/// Claude Desktop's Chromium cookie store and decrypts them with the key macOS
-/// Keychain holds under `Claude Safe Storage`.
-///
-/// The decrypt recipe is the standard macOS Chromium one and was verified
-/// end-to-end against a live install before any Swift was written:
-/// key = PBKDF2-HMAC-SHA1(keychain password, salt "saltysalt", 1003 rounds, 16B),
-/// value = "v10" || AES-128-CBC(key, IV = 16 spaces, PKCS7) of (32B prefix || value).
+/// Resolves live Claude credentials read-only across local desktop/CLI/browser stores:
+/// 1. Claude Desktop `config.json` (`oauth:tokenCacheV2`, then `oauth:tokenCache`),
+///    decrypted with the `Claude Safe Storage` Keychain secret (AES-128-CBC `"v10"`,
+///    no 32-byte cookie prefix).
+/// 2. Claude Code credentials from `$CLAUDE_CONFIG_DIR/.credentials.json` or
+///    `~/.claude/.credentials.json`, then Keychain service `Claude Code-credentials`
+///    (tokens explicitly lacking `user:profile` are ranked behind valid browser cookies).
+/// 3. Claude Desktop Chromium cookies (`~/Library/Application Support/Claude/Cookies`).
+/// 4. Google Chrome `.claude.ai` cookies (`Google/Chrome/Default/Cookies`), encrypted
+///    with `Chrome Safe Storage`.
 public struct ClaudeDesktopSessionSource: ClaudeSessionSource {
+    let configFileURL: URL
     let cookiesDBURL: URL
+    let claudeCodeCredentialsURL: URL
+    let chromeCookiesDBURL: URL
+    let keychainLookup: KeychainLookup
+    let now: @Sendable () -> Date
 
-    public init(cookiesDBURL: URL? = nil) {
-        if let cookiesDBURL {
-            self.cookiesDBURL = cookiesDBURL
-            return
-        }
+    public init(
+        configFileURL: URL? = nil,
+        cookiesDBURL: URL? = nil,
+        claudeCodeCredentialsURL: URL? = nil,
+        chromeCookiesDBURL: URL? = nil,
+        keychainLookup: KeychainLookup? = nil,
+        now: @escaping @Sendable () -> Date = { Date() }
+    ) {
         let home = FileManager.default.homeDirectoryForCurrentUser
-        self.cookiesDBURL = home
+        self.configFileURL = configFileURL ?? home
+            .appending(path: "Library/Application Support/Claude/config.json")
+        self.cookiesDBURL = cookiesDBURL ?? home
             .appending(path: "Library/Application Support/Claude/Cookies")
+        if let claudeCodeCredentialsURL {
+            self.claudeCodeCredentialsURL = claudeCodeCredentialsURL
+        } else if let overrideDir = ProcessInfo.processInfo.environment["CLAUDE_CONFIG_DIR"],
+                  !overrideDir.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            self.claudeCodeCredentialsURL = URL(fileURLWithPath: overrideDir)
+                .appending(path: ".credentials.json")
+        } else {
+            self.claudeCodeCredentialsURL = home.appending(path: ".claude/.credentials.json")
+        }
+        self.chromeCookiesDBURL = chromeCookiesDBURL ?? home
+            .appending(path: "Library/Application Support/Google/Chrome/Default/Cookies")
+        self.keychainLookup = keychainLookup ?? { Self.defaultKeychainLookup(service: $0) }
+        self.now = now
     }
 
     public func load() throws -> ClaudeSession {
-        let password = try Self.keychainPassword()
+        let currentNow = now()
+        var state = ResolutionState()
+
+        if let session = tryLoadDesktopOAuth(now: currentNow, state: &state) {
+            return session
+        }
+        if let session = tryLoadClaudeCodeFile(now: currentNow, state: &state) {
+            return session
+        }
+        if let session = tryLoadClaudeCodeKeychain(now: currentNow, state: &state) {
+            return session
+        }
+        if let session = tryLoadCookieSession(
+            dbURL: cookiesDBURL,
+            keychainService: "Claude Safe Storage",
+            now: currentNow,
+            state: &state
+        ) {
+            return session
+        }
+        if let session = tryLoadCookieSession(
+            dbURL: chromeCookiesDBURL,
+            keychainService: "Chrome Safe Storage",
+            now: currentNow,
+            state: &state
+        ) {
+            return session
+        }
+
+        if let lowPriority = state.lowPriorityValidOAuth {
+            return lowPriority
+        }
+        // Surface Keychain blocks before falling back to an unrelated expired file so a
+        // locked Keychain is never misreported as a sign-out or stale CLI login.
+        if state.sawKeychainDenied {
+            throw UsageProviderError.notConnected(
+                "Claude credentials locked in macOS Keychain - unlock Login Keychain"
+            )
+        }
+        if let expired = state.expiredFallback {
+            return expired
+        }
+        throw UsageProviderError.notConnected("Claude Desktop is not signed in on this Mac")
+    }
+
+    // MARK: - Candidate loaders
+
+    private struct ResolutionState {
+        var sawKeychainDenied = false
+        var expiredFallback: ClaudeSession?
+        var lowPriorityValidOAuth: ClaudeSession?
+        var cachedSecrets: [String: String] = [:]
+
+        mutating func recordExpired(_ session: ClaudeSession) {
+            if expiredFallback == nil {
+                expiredFallback = session
+            }
+        }
+    }
+
+    private func lookupKeychain(_ service: String, state: inout ResolutionState) -> String? {
+        if let cached = state.cachedSecrets[service] {
+            return cached
+        }
+        switch keychainLookup(service) {
+        case .found(let secret):
+            state.cachedSecrets[service] = secret
+            return secret
+        case .notFound:
+            return nil
+        case .denied:
+            state.sawKeychainDenied = true
+            return nil
+        }
+    }
+
+    private func tryLoadDesktopOAuth(now currentNow: Date, state: inout ResolutionState) -> ClaudeSession? {
+        guard let configData = try? Data(contentsOf: configFileURL),
+              let configObject = try? JSONSerialization.jsonObject(with: configData) as? [String: Any]
+        else { return nil }
+
+        let encryptedEntries = ["oauth:tokenCacheV2", "oauth:tokenCache"]
+            .compactMap { configObject[$0] as? String }
+            .filter { !$0.isEmpty }
+        guard !encryptedEntries.isEmpty else { return nil }
+
+        guard let secret = lookupKeychain("Claude Safe Storage", state: &state) else { return nil }
+        let key = Self.deriveKey(password: secret)
+
+        for encoded in encryptedEntries {
+            guard let blob = Data(base64Encoded: encoded),
+                  let jsonText = Self.decryptSafeStorageString(blob, key: key),
+                  let jsonData = jsonText.data(using: .utf8)
+            else { continue }
+
+            let candidate = Self.selectOAuthCacheSession(from: jsonData, now: currentNow)
+            if let valid = candidate.valid {
+                return valid
+            }
+            if let expired = candidate.expired {
+                state.recordExpired(expired)
+            }
+        }
+        return nil
+    }
+
+    private func tryLoadClaudeCodeFile(now currentNow: Date, state: inout ResolutionState) -> ClaudeSession? {
+        guard let data = try? Data(contentsOf: claudeCodeCredentialsURL) else { return nil }
+        return acceptClaudeCodePayload(data, now: currentNow, state: &state)
+    }
+
+    private func tryLoadClaudeCodeKeychain(now currentNow: Date, state: inout ResolutionState) -> ClaudeSession? {
+        guard let rawJSON = lookupKeychain("Claude Code-credentials", state: &state),
+              let data = rawJSON.data(using: .utf8)
+        else { return nil }
+        return acceptClaudeCodePayload(data, now: currentNow, state: &state)
+    }
+
+    private func acceptClaudeCodePayload(
+        _ data: Data,
+        now currentNow: Date,
+        state: inout ResolutionState
+    ) -> ClaudeSession? {
+        guard let parsed = Self.parseClaudeCodeOAuth(from: data) else { return nil }
+        let session = parsed.session
+        if session.isExpired(now: currentNow) {
+            state.recordExpired(session)
+            return nil
+        }
+        if parsed.hasProfileScope {
+            return session
+        }
+        if state.lowPriorityValidOAuth == nil {
+            state.lowPriorityValidOAuth = session
+        }
+        return nil
+    }
+
+    private func tryLoadCookieSession(
+        dbURL: URL,
+        keychainService: String,
+        now currentNow: Date,
+        state: inout ResolutionState
+    ) -> ClaudeSession? {
+        let rows = (try? Self.readEncryptedCookies(host: "%claude.ai%", from: dbURL)) ?? []
+        let names = Set(rows.map(\.name))
+        guard names.contains("sessionKey"), names.contains("lastActiveOrg") else {
+            return nil
+        }
+
+        guard let password = lookupKeychain(keychainService, state: &state) else { return nil }
         let key = Self.deriveKey(password: password)
 
         var sessionKey = ""
@@ -68,55 +275,156 @@ public struct ClaudeDesktopSessionSource: ClaudeSessionSource {
         var cfClearance: String?
         var expiresAt: Date?
 
-        try Self.forEachCookie(host: "%claude.ai%", dbPath: cookiesDBURL.path) { name, blob, expires in
-            guard let value = Self.decryptCookie(blob, key: key) else { return }
-            switch name {
+        for row in rows {
+            guard let value = Self.decryptCookie(row.blob, key: key), !value.isEmpty else { continue }
+            switch row.name {
             case "sessionKey":
                 sessionKey = value
-                expiresAt = Self.unixDate(fromChromiumExpires: expires)
+                expiresAt = Self.unixDate(fromChromiumExpires: row.expiresUTC)
             case "lastActiveOrg":
                 organizationId = value
-            case "cfClearance":
+            case "cf_clearance":
                 cfClearance = value
             default:
                 break
             }
         }
 
-        guard !sessionKey.isEmpty, !organizationId.isEmpty else {
-            throw UsageProviderError.notConnected("Claude Desktop is not signed in on this Mac")
-        }
-
-        return ClaudeSession(
+        guard !sessionKey.isEmpty, !organizationId.isEmpty else { return nil }
+        let session = ClaudeSession(
             sessionKey: sessionKey,
             organizationId: organizationId,
             cfClearance: cfClearance,
             expiresAt: expiresAt
         )
+        if session.isExpired(now: currentNow) {
+            state.recordExpired(session)
+            return nil
+        }
+        return session
     }
 
-    /// Reads the `Claude Safe Storage` secret from the login Keychain. The first
-    /// access from this app may show a one-time macOS approval dialog; that is
-    /// the system doing its job, and the user's answer applies from then on.
-    public static func keychainPassword() throws -> String {
+    // MARK: - Pure parsing helpers
+
+    static func selectOAuthCacheSession(
+        from data: Data,
+        now currentNow: Date
+    ) -> (valid: ClaudeSession?, expired: ClaudeSession?) {
+        guard let entries = try? JSONDecoder().decode([String: OAuthCacheEntry?].self, from: data) else {
+            return (nil, nil)
+        }
+
+        var bestValid: (score: Int, expiry: Date, session: ClaudeSession)?
+        var bestExpired: (score: Int, expiry: Date, session: ClaudeSession)?
+
+        for (cacheKey, maybeEntry) in entries {
+            guard let entry = maybeEntry,
+                  let rawToken = entry.token?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !rawToken.isEmpty
+            else { continue }
+
+            // Never send staging or local dev tokens to api.anthropic.com.
+            if cacheKey.contains("api-staging.")
+                || cacheKey.contains("://localhost")
+                || cacheKey.contains("://127.0.0.1") {
+                continue
+            }
+
+            let expiresAt = entry.expiresAt.map(Self.unixDate(fromEpochNumber:))
+            let session = ClaudeSession(accessToken: rawToken, expiresAt: expiresAt)
+            let scopeScore = cacheKey.contains("user:profile")
+                ? 3
+                : (cacheKey.contains("user:inference") ? 2 : 1)
+            let sortDate = expiresAt ?? .distantFuture
+
+            if session.isExpired(now: currentNow) {
+                if let currentBest = bestExpired {
+                    if (scopeScore, sortDate) > (currentBest.score, currentBest.expiry) {
+                        bestExpired = (scopeScore, sortDate, session)
+                    }
+                } else {
+                    bestExpired = (scopeScore, sortDate, session)
+                }
+            } else {
+                if let currentBest = bestValid {
+                    if (scopeScore, sortDate) > (currentBest.score, currentBest.expiry) {
+                        bestValid = (scopeScore, sortDate, session)
+                    }
+                } else {
+                    bestValid = (scopeScore, sortDate, session)
+                }
+            }
+        }
+
+        return (bestValid?.session, bestExpired?.session)
+    }
+
+    static func parseClaudeCodeOAuth(from data: Data) -> (session: ClaudeSession, hasProfileScope: Bool)? {
+        guard let decoded = try? JSONDecoder().decode(ClaudeCodeCredentialsFile.self, from: data),
+              let oauth = decoded.claudeAiOauth,
+              let token = oauth.accessToken?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !token.isEmpty
+        else { return nil }
+
+        let expiresAt = oauth.expiresAt.map(Self.unixDate(fromEpochNumber:))
+        let hasProfileScope: Bool
+        if let scopes = oauth.scopes, !scopes.isEmpty {
+            hasProfileScope = scopes.contains("user:profile")
+        } else {
+            hasProfileScope = true
+        }
+        return (ClaudeSession(accessToken: token, expiresAt: expiresAt), hasProfileScope)
+    }
+
+    private static func unixDate(fromEpochNumber raw: Double) -> Date {
+        if raw <= 0 {
+            return Date(timeIntervalSince1970: 0)
+        }
+        let seconds = raw > 1_000_000_000_000 ? raw / 1000.0 : raw
+        return Date(timeIntervalSince1970: seconds)
+    }
+
+    // MARK: - Keychain
+
+    /// Reads one generic password service from the login Keychain, checking
+    /// existence first so absent services never trigger an unnecessary prompt.
+    public static func defaultKeychainLookup(service: String) -> KeychainLookupResult {
+        let existsQuery: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+        ]
+        let existsStatus = SecItemCopyMatching(existsQuery as CFDictionary, nil)
+        if existsStatus == errSecItemNotFound {
+            return .notFound
+        }
+
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: "Claude Safe Storage",
+            kSecAttrService as String: service,
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne,
         ]
         var item: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &item)
-        guard status == errSecSuccess,
-              let data = item as? Data,
-              let password = String(data: data, encoding: .utf8)?
-                  .trimmingCharacters(in: .whitespacesAndNewlines),
-              !password.isEmpty
-        else {
-            throw UsageProviderError.notConnected("Claude Desktop is not signed in on this Mac")
+        switch status {
+        case errSecSuccess:
+            guard let data = item as? Data,
+                  let password = String(data: data, encoding: .utf8)?
+                      .trimmingCharacters(in: .whitespacesAndNewlines),
+                  !password.isEmpty
+            else {
+                return .notFound
+            }
+            return .found(password)
+        case errSecItemNotFound:
+            return .notFound
+        default:
+            return .denied(status)
         }
-        return password
     }
+
+    // MARK: - Chromium crypto
 
     public static func deriveKey(password: String) -> Data {
         let salt = Data("saltysalt".utf8)
@@ -137,16 +445,34 @@ public struct ClaudeDesktopSessionSource: ClaudeSessionSource {
         return result == kCCSuccess ? derived : Data()
     }
 
-    /// Decrypts one Chromium v10 cookie blob. Returns nil for any shape this
-    /// code does not recognize rather than guessing — a wrong guess here would
-    /// send a garbage cookie to claude.ai.
+    /// Decrypts a Chromium / Electron `"v10"` AES-128-CBC secret payload without
+    /// stripping a 32-byte cookie prefix (used for `safeStorage.encryptString`).
+    public static func decryptSafeStorageString(_ blob: Data, key: Data) -> String? {
+        guard let plaintext = decryptAES128CBC(blob, key: key), !plaintext.isEmpty else {
+            return nil
+        }
+        return String(data: plaintext, encoding: .utf8)
+    }
+
+    /// Decrypts one Chromium v10 cookie blob (strips the 32-byte domain hash prefix).
     public static func decryptCookie(_ blob: Data, key: Data) -> String? {
+        guard let plaintext = decryptAES128CBC(blob, key: key), plaintext.count > 32 else {
+            return nil
+        }
+        let value = plaintext.subdata(in: 32..<plaintext.count)
+        return String(data: value, encoding: .utf8)
+    }
+
+    private static func decryptAES128CBC(_ blob: Data, key: Data) -> Data? {
         guard key.count == 16 else { return nil }
         guard blob.count > 3, blob.prefix(3) == Data("v10".utf8) else { return nil }
 
         let body = blob.dropFirst(3)
         let iv = Data(repeating: 0x20, count: 16)
-        var out = Data(count: body.count + kCCBlockSizeAES128)
+        let outCapacity = body.count + kCCBlockSizeAES128
+        var out = Data(count: outCapacity)
+        let keyCount = key.count
+        let bodyCount = body.count
         var outLength = 0
 
         let status: CCCryptorStatus = body.withUnsafeBytes { bodyBytes in
@@ -157,28 +483,21 @@ public struct ClaudeDesktopSessionSource: ClaudeSessionSource {
                             CCOperation(kCCDecrypt),
                             CCAlgorithm(kCCAlgorithmAES128),
                             CCOptions(kCCOptionPKCS7Padding),
-                            keyBytes.baseAddress, key.count,
+                            keyBytes.baseAddress, keyCount,
                             ivBytes.baseAddress,
-                            bodyBytes.baseAddress, bodyBytes.count,
-                            outBytes.baseAddress, outBytes.count,
+                            bodyBytes.baseAddress, bodyCount,
+                            outBytes.baseAddress, outCapacity,
                             &outLength
                         )
                     }
                 }
             }
         }
-        guard status == kCCSuccess else { return nil }
-
-        // Plaintext = 32-byte prefix || cookie value (padding already removed).
-        guard outLength > 32 else { return nil }
-        let value = out.subdata(in: 32..<outLength)
-        return String(data: value, encoding: .utf8)
+        guard status == kCCSuccess, outLength > 0 else { return nil }
+        return out.prefix(outLength)
     }
 
-    /// `expires_utc` is a count of MICROSECONDS since 1601-01-01T00:00:00Z
-    /// (WebKit's legacy epoch). Verified against the live install: the real
-    /// sessionKey value 13437063650655199 lands on 2026-10-21 with this
-    /// formula — the 100ns interpretation would land in 1643.
+    /// `expires_utc` is a count of MICROSECONDS since 1601-01-01T00:00:00Z.
     public static func unixDate(fromChromiumExpires ticks: Int64) -> Date? {
         guard ticks > 0 else { return nil }
         let secondsSince1601 = Double(ticks) / 1_000_000
@@ -186,20 +505,44 @@ public struct ClaudeDesktopSessionSource: ClaudeSessionSource {
         return Date(timeIntervalSince1970: secondsSinceUnixEpoch)
     }
 
-    /// Opens the cookie database strictly read-only and walks the matching rows.
-    /// The busy timeout keeps a transient lock from Claude Desktop itself from
-    /// being reported to the user as a sign-in problem.
-    static func forEachCookie(
-        host: String,
-        dbPath: String,
-        visit: (String, Data, Int64) -> Void
-    ) throws {
+    // MARK: - Read-only SQLite cookie snapshot
+
+    private struct EncryptedCookieRow {
+        let name: String
+        let blob: Data
+        let expiresUTC: Int64
+    }
+
+    /// Snapshots a Chromium cookie database plus WAL/SHM sidecars into /tmp and opens
+    /// it strictly read-only (`immutable=1`), avoiding lock contention with Chrome.
+    private static func readEncryptedCookies(host: String, from dbURL: URL) throws -> [EncryptedCookieRow] {
+        guard FileManager.default.fileExists(atPath: dbURL.path) else {
+            return []
+        }
+
+        let tempURL = FileManager.default.temporaryDirectory
+            .appending(path: "claude-cookies-\(UUID().uuidString).sqlite")
+        try FileManager.default.copyItem(at: dbURL, to: tempURL)
+        for suffix in ["-wal", "-shm", "-journal"] {
+            let sidecarSrc = URL(fileURLWithPath: dbURL.path + suffix)
+            if FileManager.default.fileExists(atPath: sidecarSrc.path) {
+                let sidecarDst = URL(fileURLWithPath: tempURL.path + suffix)
+                try? FileManager.default.copyItem(at: sidecarSrc, to: sidecarDst)
+            }
+        }
+        defer {
+            try? FileManager.default.removeItem(at: tempURL)
+            try? FileManager.default.removeItem(at: URL(fileURLWithPath: tempURL.path + "-wal"))
+            try? FileManager.default.removeItem(at: URL(fileURLWithPath: tempURL.path + "-shm"))
+            try? FileManager.default.removeItem(at: URL(fileURLWithPath: tempURL.path + "-journal"))
+        }
+
         var db: OpaquePointer?
-        guard sqlite3_open_v2(dbPath, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK, let db else {
-            throw UsageProviderError.notConnected("Claude Desktop is not signed in on this Mac")
+        let uri = "file:" + tempURL.path + "?immutable=1"
+        guard sqlite3_open_v2(uri, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_URI, nil) == SQLITE_OK, let db else {
+            return []
         }
         defer { sqlite3_close(db) }
-        sqlite3_busy_timeout(db, 250)
 
         let sql = """
         SELECT name, hex(encrypted_value), expires_utc
@@ -208,11 +551,12 @@ public struct ClaudeDesktopSessionSource: ClaudeSessionSource {
         """
         var statement: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK, let statement else {
-            throw UsageProviderError.notConnected("Claude Desktop is not signed in on this Mac")
+            return []
         }
         defer { sqlite3_finalize(statement) }
 
         sqlite3_bind_text(statement, 1, host, -1, SQLITE_TRANSIENT)
+        var rows: [EncryptedCookieRow] = []
         while sqlite3_step(statement) == SQLITE_ROW {
             guard let nameC = sqlite3_column_text(statement, 0),
                   let hexC = sqlite3_column_text(statement, 1)
@@ -220,8 +564,24 @@ public struct ClaudeDesktopSessionSource: ClaudeSessionSource {
             let name = String(cString: nameC)
             let hex = String(cString: hexC)
             let expires = sqlite3_column_int64(statement, 2)
-            guard let blob = Data(hexString: hex) else { continue }
-            visit(name, blob, expires)
+            guard let blob = Data(hexString: hex), !blob.isEmpty else { continue }
+            rows.append(EncryptedCookieRow(name: name, blob: blob, expiresUTC: expires))
+        }
+        return rows
+    }
+
+    private struct OAuthCacheEntry: Decodable {
+        let token: String?
+        let expiresAt: Double?
+    }
+
+    private struct ClaudeCodeCredentialsFile: Decodable {
+        let claudeAiOauth: OAuthPayload?
+
+        struct OAuthPayload: Decodable {
+            let accessToken: String?
+            let expiresAt: Double?
+            let scopes: [String]?
         }
     }
 }

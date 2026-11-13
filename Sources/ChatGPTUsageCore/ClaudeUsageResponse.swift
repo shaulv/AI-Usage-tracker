@@ -51,11 +51,41 @@ public struct ClaudeUsageResponse: Decodable {
         }
     }
 
+    public struct LimitItem: Decodable {
+        public struct Scope: Decodable {
+            public struct Named: Decodable {
+                public let displayName: String?
+
+                enum CodingKeys: String, CodingKey {
+                    case displayName = "display_name"
+                }
+            }
+
+            public let model: Named?
+            public let surface: Named?
+        }
+
+        public let kind: String
+        public let group: String?
+        public let percent: Double
+        public let resetsAt: String?
+        public let scope: Scope?
+
+        enum CodingKeys: String, CodingKey {
+            case kind
+            case group
+            case percent
+            case resetsAt = "resets_at"
+            case scope
+        }
+    }
+
     public let fiveHour: Bucket?
     public let sevenDay: Bucket?
     public let sevenDayOpus: Bucket?
     public let sevenDaySonnet: Bucket?
     public let extraUsage: ExtraUsage?
+    public let limits: [LimitItem]?
     public let hasRecognizedPayload: Bool
 
     private enum Keys: String, CodingKey {
@@ -80,6 +110,7 @@ public struct ClaudeUsageResponse: Decodable {
         sevenDayOpus = try container.decodeIfPresent(Bucket.self, forKey: .sevenDayOpus)
         sevenDaySonnet = try container.decodeIfPresent(Bucket.self, forKey: .sevenDaySonnet)
         extraUsage = try container.decodeIfPresent(ExtraUsage.self, forKey: .extraUsage)
+        limits = try? container.decodeIfPresent([LimitItem].self, forKey: .limits)
     }
 
     /// Maps every non-null bucket to a display row. An empty array is a real
@@ -88,7 +119,7 @@ public struct ClaudeUsageResponse: Decodable {
     /// fraction (0...1), so the division and the clamp happen exactly here —
     /// one place, not scattered per-bucket.
     public func toUsageLimits(now: Date = Date()) -> [UsageLimit] {
-        var limits: [UsageLimit] = []
+        var mappedLimits: [UsageLimit] = []
         func fraction(_ percent: Double) -> Double {
             min(max(percent, 0), 100) / 100
         }
@@ -96,35 +127,60 @@ public struct ClaudeUsageResponse: Decodable {
         // Known buckets carry their true duration, so naming flows through the
         // same duration-based namer ChatGPT uses — one naming brain, two APIs.
         if let bucket = fiveHour, let percent = bucket.utilization {
-            limits.append(UsageLimit(
+            mappedLimits.append(UsageLimit(
                 name: WindowNamer.name(forWindowSeconds: 18_000, fallback: "Session"),
                 usedFraction: fraction(percent),
                 resetsAt: Self.parseReset(bucket.resetsAt)
             ))
         }
         if let bucket = sevenDay, let percent = bucket.utilization {
-            limits.append(UsageLimit(
+            mappedLimits.append(UsageLimit(
                 name: WindowNamer.name(forWindowSeconds: 604_800, fallback: "Weekly"),
                 usedFraction: fraction(percent),
                 resetsAt: Self.parseReset(bucket.resetsAt)
             ))
         }
         if let bucket = sevenDayOpus, let percent = bucket.utilization {
-            limits.append(UsageLimit(
+            mappedLimits.append(UsageLimit(
                 name: "Weekly (Opus)",
                 usedFraction: fraction(percent),
                 resetsAt: Self.parseReset(bucket.resetsAt)
             ))
         }
         if let bucket = sevenDaySonnet, let percent = bucket.utilization {
-            limits.append(UsageLimit(
+            mappedLimits.append(UsageLimit(
                 name: "Weekly (Sonnet)",
                 usedFraction: fraction(percent),
                 resetsAt: Self.parseReset(bucket.resetsAt)
             ))
         }
+        if let items = limits {
+            for item in items {
+                let name: String
+                switch item.kind {
+                case "session":
+                    name = WindowNamer.name(forWindowSeconds: 18_000, fallback: "Session")
+                case "weekly_all":
+                    name = WindowNamer.name(forWindowSeconds: 604_800, fallback: "Weekly")
+                default:
+                    if let scopeName = item.scope?.model?.displayName ?? item.scope?.surface?.displayName,
+                       !scopeName.isEmpty {
+                        name = item.group == "weekly" ? "Weekly (\(scopeName))" : scopeName
+                    } else {
+                        name = "Usage"
+                    }
+                }
+                if !mappedLimits.contains(where: { $0.name == name }) {
+                    mappedLimits.append(UsageLimit(
+                        name: name,
+                        usedFraction: fraction(item.percent),
+                        resetsAt: Self.parseReset(item.resetsAt)
+                    ))
+                }
+            }
+        }
         if let extra = extraUsage, extra.isEnabled == true, let percent = extra.utilization {
-            limits.append(UsageLimit(
+            mappedLimits.append(UsageLimit(
                 name: "Extra usage",
                 usedFraction: fraction(percent),
                 resetsAt: nil
@@ -132,7 +188,7 @@ public struct ClaudeUsageResponse: Decodable {
         }
         // Same invariant as the ChatGPT mapper: names are row identity, so this
         // is the one place duplicates are resolved.
-        return UsageLimit.uniqued(limits)
+        return UsageLimit.uniqued(mappedLimits)
     }
 
     /// RFC 3339 / ISO 8601 UTC parser supporting both fractional seconds

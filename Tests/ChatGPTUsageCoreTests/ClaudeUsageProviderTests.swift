@@ -9,6 +9,35 @@ final class ClaudeUsageProviderTests: XCTestCase {
 
     // MARK: - Mapping (fixtures)
 
+    func test_request_oauthSessionUsesOAuthEndpointAndBearerHeaders() throws {
+        let session = ClaudeSession(accessToken: "sk-ant-oat01-test", expiresAt: nil)
+        let request = ClaudeUsageProvider.makeRequest(session: session)
+
+        XCTAssertEqual(request.url, ClaudeUsageProvider.oauthUsageURL)
+        XCTAssertEqual(request.httpMethod, "GET")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Accept"), "application/json")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer sk-ant-oat01-test")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "anthropic-beta"), "oauth-2025-04-20")
+        XCTAssertNil(request.value(forHTTPHeaderField: "Cookie"))
+    }
+
+    func test_oauthFetchLimits_parsesUsageWindowsFromOAuthEndpoint() async throws {
+        let data = try Fixture.data(named: "claude-usage-mapped.json")
+        let session = ClaudeSession(
+            accessToken: "sk-ant-oat01-live",
+            expiresAt: Date(timeIntervalSinceNow: 3600)
+        )
+        let spy = SpyTransport(data: data, statusCode: 200)
+        let provider = ClaudeUsageProvider(
+            sessionSource: StubClaudeSessionSource(result: .success(session)),
+            transport: spy.transport
+        )
+
+        let limits = try await provider.fetchLimits()
+        XCTAssertEqual(spy.lastRequest?.url, ClaudeUsageProvider.oauthUsageURL)
+        XCTAssertEqual(limits.map(\.name), ["Session (5h)", "Weekly", "Weekly (Opus)", "Extra usage"])
+    }
+
     func test_mappedPayload_namesSessionWeeklyAndModelRowsByDuration() throws {
         let data = try Fixture.data(named: "claude-usage-mapped.json")
         let limits = try ClaudeUsageMapper.limits(from: data)
@@ -306,6 +335,126 @@ final class ClaudeUsageProviderTests: XCTestCase {
         let year = Calendar(identifier: .gregorian).component(.year, from: date)
         XCTAssertEqual(year, 2026)
         XCTAssertNil(ClaudeDesktopSessionSource.unixDate(fromChromiumExpires: 0))
+    }
+
+    func test_mapper_mapsLimitsArrayPayload() throws {
+        let json = """
+        {
+          "limits": [
+            {
+              "kind": "session",
+              "group": "session",
+              "percent": 100,
+              "resets_at": "2026-11-14T02:50:00Z"
+            },
+            {
+              "kind": "weekly_all",
+              "group": "weekly",
+              "percent": 59,
+              "resets_at": "2026-11-19T10:00:00Z"
+            },
+            {
+              "kind": "weekly_scoped",
+              "group": "weekly",
+              "percent": 72,
+              "resets_at": "2026-11-19T10:00:00Z",
+              "scope": {
+                "model": {
+                  "display_name": "Fable"
+                }
+              }
+            }
+          ]
+        }
+        """
+        let limits = try ClaudeUsageMapper.limits(from: Data(json.utf8))
+        XCTAssertEqual(limits.count, 3)
+        XCTAssertEqual(limits[0].name, "Session (5h)")
+        XCTAssertEqual(limits[0].usedFraction, 1.0, accuracy: 0.0001)
+        XCTAssertEqual(limits[0].resetsAt, Date(timeIntervalSince1970: 1_794_624_600))
+        XCTAssertEqual(limits[1].name, "Weekly")
+        XCTAssertEqual(limits[1].usedFraction, 0.59, accuracy: 0.0001)
+        XCTAssertEqual(limits[2].name, "Weekly (Fable)")
+        XCTAssertEqual(limits[2].usedFraction, 0.72, accuracy: 0.0001)
+    }
+
+    func test_localFallback_loadsActiveRateLimitAndPlanUsageHistory() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("claude-local-fallback-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+
+        let now = Date(timeIntervalSince1970: 1_794_611_118)
+        let cacheDir = tempDir.appendingPathComponent("Cache/Cache_Data", isDirectory: true)
+        try FileManager.default.createDirectory(at: cacheDir, withIntermediateDirectories: true)
+        let cachePayload = """
+        1/0/https://claude.ai/api/organizations/35ec8019/usage({"five_hour":{"utilization":100.0,"resets_at":"2026-11-14T02:50:00Z"},"seven_day":{"utilization":59.0,"resets_at":"2026-11-19T10:00:00Z"},"limits":[{"kind":"session","group":"session","percent":100,"resets_at":"2026-11-14T02:50:00Z"},{"kind":"weekly_all","group":"weekly","percent":59,"resets_at":"2026-11-19T10:00:00Z"},{"kind":"weekly_scoped","group":"weekly","percent":72,"resets_at":"2026-11-19T10:00:00Z","scope":{"model":{"display_name":"Fable"}}}]}trailing
+        """
+        try Data(cachePayload.utf8).write(to: cacheDir.appendingPathComponent("880800076b9e13ca_0"))
+
+        let desktopConfig: [String: Any] = [
+            "preferences": [
+                "epitaxyPrefs": [
+                    "autoResumeRateLimit.215e8907": [
+                        "local_session": [
+                            "resetsAt": 1_794_624_600,
+                            "attempt": 0,
+                            "optedIn": true
+                        ]
+                    ]
+                ]
+            ]
+        ]
+        let configData = try JSONSerialization.data(withJSONObject: desktopConfig)
+        try configData.write(to: tempDir.appendingPathComponent("claude_desktop_config.json"))
+
+        let history: [String: Any] = [
+            "version": 2,
+            "samples": [
+                [
+                    "t": 1_794_610_000_000,
+                    "org": "35ec8019",
+                    "u": [
+                        "fh": 80,
+                        "sd": 55,
+                        "so": 25
+                    ]
+                ]
+            ]
+        ]
+        let historyData = try JSONSerialization.data(withJSONObject: history)
+        try historyData.write(to: tempDir.appendingPathComponent("plan-usage-history.json"))
+
+        let limits = try XCTUnwrap(ClaudeLocalUsageFallback.loadLimits(applicationSupportURL: tempDir, now: now))
+        XCTAssertEqual(limits.count, 4)
+        XCTAssertEqual(limits[0].name, "Session (5h)")
+        XCTAssertEqual(limits[0].usedFraction, 1.0, accuracy: 0.0001)
+        XCTAssertEqual(limits[0].resetsAt, Date(timeIntervalSince1970: 1_794_624_600))
+        XCTAssertEqual(limits[1].name, "Weekly")
+        XCTAssertEqual(limits[1].usedFraction, 0.59, accuracy: 0.0001)
+        XCTAssertEqual(limits[2].name, "Weekly (Fable)")
+        XCTAssertEqual(limits[2].usedFraction, 0.72, accuracy: 0.0001)
+        XCTAssertEqual(limits[3].name, "Weekly (Opus)")
+        XCTAssertEqual(limits[3].usedFraction, 0.25, accuracy: 0.0001)
+    }
+
+    func test_provider_fallsBackToLocalUsageWhenCredentialsLocked() async throws {
+        let resetDate = Date(timeIntervalSince1970: 1_794_624_600)
+        let provider = ClaudeUsageProvider(
+            sessionSource: StubClaudeSessionSource(result: .failure(
+                UsageProviderError.notConnected("Claude credentials locked in macOS Keychain - unlock Login Keychain")
+            )),
+            transport: { _ in
+                XCTFail("Network must not be called when credentials fail")
+                throw URLError(.badServerResponse)
+            },
+            now: { Date(timeIntervalSince1970: 1_794_611_118) },
+            localFallback: { _ in
+                [UsageLimit(name: "Session (5h)", usedFraction: 1.0, resetsAt: resetDate)]
+            }
+        )
+
+        let limits = try await provider.fetchLimits()
+        XCTAssertEqual(limits, [UsageLimit(name: "Session (5h)", usedFraction: 1.0, resetsAt: resetDate)])
     }
 }
 

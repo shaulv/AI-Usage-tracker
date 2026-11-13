@@ -1,0 +1,95 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. v1.5.2)"
+        required: false
+        default: "v1.5.2"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Resolve tag name
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ inputs.tag }}" ]; then
+            echo "name=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run unit tests and README claim checks
+        run: |
+          swift test
+          bash tools/check-readme-claims.sh
+
+      - name: Build Release app bundle
+        run: |
+          xcodebuild \
+            -project ChatGPTUsageTracker.xcodeproj \
+            -scheme ChatGPTUsageTracker \
+            -configuration Release \
+            -derivedDataPath build \
+            build \
+            CODE_SIGN_IDENTITY="-"
+          APP_PATH="build/Build/Products/Release/AI Usage tracker.app"
+          xattr -cr "$APP_PATH"
+          codesign --force --sign - "$APP_PATH/Contents/Frameworks/ChatGPTUsageCore.framework"
+          codesign --force --sign - --entitlements ChatGPTUsageTracker.entitlements "$APP_PATH"
+          codesign --verify --deep --strict "$APP_PATH"
+
+      - name: Package DMG and ZIP release assets
+        run: |
+          TAG="${{ steps.tag.outputs.name }}"
+          REL_DIR="build/Build/Products/Release"
+          cd "$REL_DIR"
+          zip -r -y "AI-Usage-tracker-${TAG}.zip" "AI Usage tracker.app"
+          STAGE_DMG="$(mktemp -d /tmp/aiusage-dmg.XXXXXX)"
+          cp -R "AI Usage tracker.app" "$STAGE_DMG/AI Usage tracker.app"
+          ln -s /Applications "$STAGE_DMG/Applications"
+          hdiutil create \
+            -volname "AI Usage tracker" \
+            -srcfolder "$STAGE_DMG" \
+            -ov \
+            -format UDZO \
+            "AI-Usage-tracker-${TAG}.dmg"
+          ls -lh "AI-Usage-tracker-${TAG}.dmg" "AI-Usage-tracker-${TAG}.zip"
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.tag.outputs.name }}"
+          REL_DIR="build/Build/Products/Release"
+          NOTES_FILE="$(mktemp /tmp/release-notes.XXXXXX)"
+          cat > "$NOTES_FILE" <<'EOF'
+          ### What's New in v1.5.2
+          - **Claude Weekly + Weekly (Fable) Support**: Decodes Claude's `limits` array (`session`, `weekly_all`, and model-scoped `weekly_scoped` such as `Weekly (Fable)`) alongside `five_hour` and `seven_day`.
+          - **Multi-Source Claude Auth & OAuth Bearer**: Supports Claude Code CLI OAuth tokens (`/api/oauth/usage`), Chrome cookies, and Claude Desktop cookies.
+          - **Local Claude Desktop Cache Fallback**: Reads `zstd`-compressed `/api/organizations/{org}/usage` responses from `~/Library/Application Support/Claude/Cache/Cache_Data/*_0`, `claude_desktop_config.json`, and `plan-usage-history.json` when macOS Keychain is locked.
+          - **Release Assets**: Includes both `AI-Usage-tracker-v1.5.2.dmg` installer and `AI-Usage-tracker-v1.5.2.zip` bundle archive.
+          EOF
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" \
+              "$REL_DIR/AI-Usage-tracker-${TAG}.dmg" \
+              "$REL_DIR/AI-Usage-tracker-${TAG}.zip" \
+              --clobber
+          else
+            gh release create "$TAG" \
+              "$REL_DIR/AI-Usage-tracker-${TAG}.dmg" \
+              "$REL_DIR/AI-Usage-tracker-${TAG}.zip" \
+              --title "${TAG}: Restore Claude Session (5h), Weekly, and Weekly (Fable) usage" \
+              --notes-file "$NOTES_FILE"
+          fi
